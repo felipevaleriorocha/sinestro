@@ -14,17 +14,6 @@ a{color:var(--blue);cursor:pointer;text-decoration:none} a:hover{text-decoration
 .banner{display:none;padding:6px 20px;font-weight:600;background:var(--warn);color:#111}
 header{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
 .brand{font-weight:600;flex:1} #nav{display:flex;gap:6px}
-.auto-approve-wrap{display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
-.auto-approve-txt{font-size:12px;font-weight:600;color:var(--muted);transition:color .2s ease}
-.auto-approve-wrap:hover .auto-approve-txt{color:var(--text)}
-.toggle-switch{position:relative;display:inline-block;width:56px;height:30px;cursor:pointer;flex-shrink:0}
-.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
-.toggle-track{position:absolute;top:0;left:0;right:0;bottom:0;background:#1e2638;border:1.5px solid rgba(255,255,255,.2);border-radius:9999px;transition:all .28s cubic-bezier(0.4,0,0.2,1)}
-.toggle-thumb{position:absolute;top:3.5px;left:4px;width:20px;height:20px;border-radius:50%;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,.45);transition:all .28s cubic-bezier(0.4,0,0.2,1)}
-.toggle-switch:hover .toggle-track{border-color:rgba(255,255,255,.35)}
-.toggle-switch input:checked + .toggle-track{background:#1750cc;border-color:#3b82f6;box-shadow:0 0 16px rgba(37,99,235,.75),0 0 28px rgba(37,99,235,.4)}
-.toggle-switch input:checked + .toggle-track .toggle-thumb{transform:translateX(25px);background:#2b7fff;box-shadow:0 0 10px rgba(59,130,246,.9),0 2px 6px rgba(0,0,0,.35)}
-.auto-approve-wrap.active .auto-approve-txt{color:var(--blue)}
 #nav button,.tnav button{background:none;color:var(--muted)} #nav button.on{background:var(--raised);color:var(--text)}
 main{max-width:1000px;margin:0 auto;padding:18px 20px 40px} #tech{max-width:1400px}
 button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
@@ -42,6 +31,17 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .box:focus-within{border-color:var(--blue)}
 .box textarea{width:100%;background:none;border:0;outline:0;resize:none;color:var(--text);font:16px/1.5 inherit;font-family:inherit;max-height:240px}
 .bar2{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.bar2-right{display:flex;align-items:center;gap:14px}
+.auto-approve-wrap{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.auto-approve-txt{font-size:12px;font-weight:500;color:var(--muted);transition:color .2s ease}
+.auto-approve-wrap:hover .auto-approve-txt{color:var(--text)}
+.toggle-switch{position:relative;display:inline-block;width:48px;height:26px;cursor:pointer;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;top:0;left:0;right:0;bottom:0;background:#172033;border:1px solid var(--line);border-radius:9999px;transition:all .22s ease}
+.toggle-thumb{position:absolute;top:2.5px;left:3px;width:19px;height:19px;border-radius:50%;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:all .22s cubic-bezier(0.4,0,0.2,1)}
+.toggle-switch:hover .toggle-track{border-color:color-mix(in srgb,var(--blue) 50%,var(--line))}
+.toggle-switch input:checked + .toggle-track{background:#2563eb;border-color:#2563eb;box-shadow:none}
+.toggle-switch input:checked + .toggle-track .toggle-thumb{transform:translateX(21px);background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .seg{display:flex;background:var(--bg);border-radius:10px;padding:3px}
 .seg button{background:none;color:var(--muted);padding:5px 14px;border-radius:8px} .seg button.on{background:var(--raised);color:var(--text)}
 .send{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center} .send svg{width:18px;height:18px}
@@ -100,13 +100,6 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
 <header>
   <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
-  <div class="auto-approve-wrap" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
-    <span class="auto-approve-txt">Auto-aprovar</span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="autoApproveToggle" onchange="toggleAutoApprove(this.checked)">
-      <span class="toggle-track"><span class="toggle-thumb"></span></span>
-    </label>
-  </div>
   <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
   <span id="health" class="muted"></span>
 </header>
@@ -117,7 +110,16 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
       <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
       <div class="bar2">
         <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
-        <button class="send" onclick="createTask()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        <div class="bar2-right">
+          <label class="auto-approve-wrap" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
+            <span class="auto-approve-txt">Auto-aprovar</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="autoApproveToggle" onchange="toggleAutoApprove(this.checked)">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </span>
+          </label>
+          <button class="send" onclick="createTask()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
       </div>
     </div>
   </section>
