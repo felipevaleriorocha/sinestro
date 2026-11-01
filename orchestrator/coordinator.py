@@ -175,7 +175,11 @@ class Coordinator:
 
     # ---------------------------------------------------------------- etapas do DAG de workflow
     async def _step_context(self, ctx: WorkflowContext) -> Any:
-        bundle = await asyncio.to_thread(self.context.for_workflow, ctx.wf_id)
+        try:
+            await asyncio.to_thread(self.context.index_workspace)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Falha ao indexar workspace para RAG: %s", exc)
+        bundle = await asyncio.to_thread(self.context.for_workflow, ctx.wf_id, False, ctx.goal)
         self.repo.update_workflow(ctx.wf_id, context_hash=bundle.hash, context_sources_json=bundle.to_dict())
         if bundle.missing:
             self.tasks.event(ctx.wf_id, "orchestrator", "context_missing", f"Documentos não encontrados: {', '.join(bundle.missing)}", "warning")
@@ -389,7 +393,8 @@ class Coordinator:
             spec["id"] = s["plan_id"]
             item = responses.get(s["plan_id"]) if responses is not None else None
             decision = resolve_assignment(spec, planner, item, responder if responses is not None else None,
-                                          self.rules, None if gemini_ok else gemini_reason)
+                                          self.rules, None if gemini_ok else gemini_reason,
+                                          registry=self.registry)
             self._apply_assignment(wf_id, s["id"], decision)
 
     def _apply_assignment(self, wf_id: str, sid: str, decision: AssignmentDecision) -> None:
@@ -1016,6 +1021,7 @@ class Coordinator:
         for r in runs:
             calls.setdefault(r["agent"], {}).setdefault(r["skill"] or "?", 0)
             calls[r["agent"]][r["skill"] or "?"] += 1
+        cost_summary = self.repo.get_cost_summary(wf_id)
         return {
             "subtasks": len(subs),
             "assignment": {
@@ -1035,6 +1041,7 @@ class Coordinator:
                              for k in ("state", "attempt", "reviewer", "self_authored_subtasks")},
             "calls_per_agent": calls,
             "calls_total": {a: sum(v.values()) for a, v in calls.items()},
+            "cost_summary": cost_summary,
         }
 
     # ================================================================ utilitários

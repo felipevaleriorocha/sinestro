@@ -141,6 +141,7 @@ class AgentRegistry:
                 "name": name,
                 "display_name": st.definition.display_name,
                 "role": st.definition.role,
+                "provider": st.definition.provider,
                 "model": st.backend.model,
                 "backend": st.backend.kind,
                 "skills": sorted(st.definition.skill_ids()),
@@ -152,5 +153,9 @@ class AgentRegistry:
             }
             if isinstance(st.backend, Agent):
                 entry["required_capabilities"] = [c.value for c in st.backend.required_capabilities]
+            if self.capability_registry:
+                spec = self.capability_registry.get_model(st.backend.model)
+                if spec:
+                    entry["model_spec"] = spec.to_dict()
             out.append(entry)
         return out

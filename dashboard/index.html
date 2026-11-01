@@ -88,7 +88,7 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
 <div class="banner" id="checksBanner">Nenhuma checagem automática ativa: as revisões dependem só dos modelos. Veja config/checks.json e .\scripts\check_integrations.ps1.</div>
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
 <header>
-  <span class="brand">Orquestrador Roblox <span class="muted" id="ver"></span></span>
+  <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
   <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
   <span id="health" class="muted"></span>
 </header>
@@ -131,7 +131,7 @@ function finalReviewBadge(w){
 const t = iso => iso ? new Date(iso).toLocaleString('pt-BR') : '';
 const ACTIVE=['queued','planning','delegating','reviewing'], CONF=/conflict|denied|blocked|busy|wait/i;
 const RESUME=['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused','completed_unreviewed'];
-const TS={subtasks:'Subtarefas',messages:'Conversas A2A',files:'Arquivos',plan:'Plano e métricas',events:'Histórico',errors:'Erros',decisions:'Decisões técnicas',locks:'Reservas de arquivos',runs:'Chamadas aos modelos',allmsg:'Todas as conversas',agents:'Agentes e modelos',mcp:'MCP'};
+const TS={subtasks:'Subtarefas',dag:'DAG de Workflow',providers:'Provedores & Modelos',costs:'Custos & Tokens',rag:'Contexto & RAG',messages:'Conversas A2A',files:'Arquivos',plan:'Plano e métricas',events:'Histórico',errors:'Erros',decisions:'Decisões técnicas',locks:'Reservas de arquivos',runs:'Chamadas aos modelos',allmsg:'Todas as conversas',agents:'Agentes e modelos',mcp:'MCP'};
 let selected=null, hold=false, vw='home', tsec='subtasks', flt='todos', actApi=true, mode='plan_only', SHOWRUN=false;
 let WF=[], AG=[], D=null, ACT=[], LK=[], LKH=[], ERR=[], DEC=[], MCPD={}, X={};
 
@@ -193,7 +193,11 @@ function agCard(a,i){
   const cur=ACT.find(x=>String(x.agent).toLowerCase()===a.name.toLowerCase()), blk=!a.accepting_work&&!cur;
   const [ti,de,ic]=cur?(ACTION[cur.skill]||[cur.skill||'Trabalhando','','code']):['Sem ação no momento','Aguardando a próxima etapa.','idle'];
   const pr=cur&&typeof cur.progress==='number'?Math.round(cur.progress*100):null;
-  return `<div class="ag ${cur?'work':blk?'blk':''}" style="--i:${i}"><div class="ah"><div class="logo">${logo(a)}</div><div class="nm">${esc(short(a.display_name))}</div><span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span></div>
+  const spec=a.model_spec||{};
+  const caps=(spec.capabilities||a.required_capabilities||[]);
+  const tier=spec.cost_tier==='high'?'<span class="pill s-warn">Alto Desempenho</span>':(spec.cost_tier==='low'?'<span class="pill s-ok">Custo Baixo</span>':'<span class="pill s-run">Custo Padrão</span>');
+  return `<div class="ag ${cur?'work':blk?'blk':''}" style="--i:${i}"><div class="ah"><div class="logo">${logo(a)}</div><div style="flex:1"><div class="nm">${esc(short(a.display_name))}</div><div class="muted mono" style="font-size:11px">${esc(a.model||'')} · ${esc(a.provider||'')}</div></div><span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin:4px 0">${tier}${caps.map(c=>`<span class="pill" style="font-size:10px">${esc(c)}</span>`).join('')}</div>
     <div class="hr"></div><div class="al">Ação atual</div>
     <div class="act">${svg(ic)}<div><div class="at">${esc(ti)}</div><div class="ad">${esc(cur&&cur.detail?cur.detail:de)}</div></div></div>
     <div class="ft">${svg('clock')}<span>${cur?liveAgo(cur.started_at,cur.source):'—'}</span><div class="pb" title="${pr===null?'Sem progresso mensurável nesta etapa':'Subtarefas aprovadas da execução'}"><b class="${cur&&pr===null?'ind':''}" style="width:${cur?(pr===null?40:pr):0}%"></b></div></div></div>`; }
@@ -295,18 +299,56 @@ async function loadTech(force){
   if(tsec==='files'&&selected) X.f=await g(`/files/changes?workflow_id=${selected}`);
   if(tsec==='runs') X.r=await g('/runs?limit=50');
   if(tsec==='allmsg') X.a=await g('/messages?limit=60');
+  if(tsec==='providers') X.prov=await g('/providers');
+  if(tsec==='costs') X.costs=await g(`/metrics/costs${selected?'?workflow_id='+selected:''}`);
   renderTech(force);
+}
+async function doRagSearch(){
+  const q=($('#ragQuery')?.value||'').trim();
+  if(!q) return toast('Digite uma consulta.');
+  try{ X.ragResults=await api(`/context/search?q=${encodeURIComponent(q)}&top_k=5`); renderTech(true); }catch(e){ toast(e.message); }
+}
+async function doRagIndex(){
+  try{ const r=await api('/context/index?refresh=true', {method:'POST'}); toast(`Indexação concluída: ${r.indexed_chunks} chunks.`); loadTech(true); }catch(e){ toast(e.message); }
 }
 function renderTech(force){
   if(vw!=='tech') return;
-  const d=D, cnt={errors:ERR.length, decisions:DEC.length, locks:LK.length}, keys=Object.keys(TS);
-  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';loadTech(true)">${TS[k]}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
-  setHTML($('#tnav'), '<div class="grp">Execução selecionada</div>'+keys.slice(0,4).map(nb).join('')+'<div class="grp">Geral</div>'+keys.slice(4).map(nb).join(''), true);
+  const d=D, cnt={errors:ERR.length, decisions:DEC.length, locks:LK.length};
+  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';loadTech(true)">${TS[k]||k}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
+  setHTML($('#tnav'), '<div class="grp">Execução selecionada</div>'+['subtasks','dag','plan','messages','files'].map(nb).join('')+'<div class="grp">Multi-Provider & RAG</div>'+['providers','costs','rag'].map(nb).join('')+'<div class="grp">Geral</div>'+['events','errors','decisions','locks','runs','allmsg','agents','mcp'].map(nb).join(''), true);
   renderExSel();
   const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none='<span class="muted">Nada para exibir.</span>';
   let h='';
-  if(['subtasks','plan'].includes(tsec)&&!d) h='<span class="muted">Selecione uma execução.</span>';
+  if(['subtasks','plan','dag'].includes(tsec)&&!d) h='<span class="muted">Selecione uma execução.</span>';
   else if(tsec==='subtasks') h = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:8px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') + `<div class="subs">${(d.subtasks||[]).map(subCard).join('')||'<span class="muted">Sem subtarefas ainda.</span>'}</div>`;
+  else if(tsec==='dag'){
+    const stages=(d&&d.stages)||[];
+    h=stages.length?stages.map(st=>`<div class="box2"><div class="sh"><b>${esc(st.stage)}</b> ${pill(st.status)}</div><div class="muted">início: ${t(st.started_at)} · fim: ${t(st.ended_at)||'em andamento'}</div>${st.error?`<div class="lvl-error">${esc(st.error)}</div>`:''}</div>`).join(''):'<span class="muted">Nenhuma etapa registrada para esta execução.</span>';
+  }
+  else if(tsec==='providers'){
+    const provs=X.prov||[];
+    h=provs.length?provs.map(p=>`<div class="box2"><div><b>${esc(p.name)}</b> <span class="muted mono">(${esc(p.id)})</span> ${pill(p.kind)}</div><div class="muted">${esc(p.description)}</div>
+      <div style="margin-top:8px">${(p.models||[]).map(m=>`<div class="sc"><div class="sh"><b class="mono">${esc(m.name)}</b> <span class="muted mono">${esc(m.id)}</span> ${pill(m.cost_tier||'standard')}</div>
+        <div class="muted">Contexto: ${m.context_window?.toLocaleString()} tokens · Max Output: ${m.max_output_tokens?.toLocaleString()} tokens</div>
+        <div class="muted">Custo Estimado: $${m.cost_per_million_input}/M tokens in · $${m.cost_per_million_output}/M tokens out</div>
+        <div class="chips" style="margin-top:4px">${(m.capabilities||[]).map(c=>`<span class="pill" style="font-size:10px">${esc(c)}</span>`).join('')}</div></div>`).join('')}</div></div>`).join(''):'<span class="muted">Carregando provedores…</span>';
+  }
+  else if(tsec==='costs'){
+    const c=X.costs||{};
+    const ags=Object.entries(c.by_agent||{});
+    h=`<div class="box2"><div><b>Consolidado de Custos e Tokens</b> ${c.workflow_id?`<span class="muted">(Execução ${esc(c.workflow_id)})</span>`:''}</div>
+      <div class="row" style="margin-top:8px"><span class="chip">Execuções: ${c.total_runs||0}</span><span class="chip">Tokens Entrada: ${(c.total_tokens_in||0).toLocaleString()}</span><span class="chip">Tokens Saída: ${(c.total_tokens_out||0).toLocaleString()}</span><span class="pill s-ok">Custo Estimado: $${esc(c.total_estimated_usd||0)}</span></div></div>
+      <div style="margin-top:10px">${ags.length?ags.map(([name,st])=>`<div class="box2"><div><b>${esc(dn(name))}</b> <span class="muted mono">(${esc(name)})</span></div>
+        <div class="chips" style="margin:4px 0"><span class="chip">Chamadas: ${st.runs} (${st.successful} ok, ${st.failed} erro)</span><span class="chip">Entrada: ${st.input_tokens.toLocaleString()}</span><span class="chip">Saída: ${st.output_tokens.toLocaleString()}</span><span class="pill s-ok">Custo Estimado: $${st.estimated_cost_usd}</span></div>
+        <div class="muted mono" style="font-size:11px">Modelos: ${(st.models_used||[]).join(', ')}</div></div>`).join(''):'<span class="muted">Nenhum custo registrado ainda.</span>'}</div>`;
+  }
+  else if(tsec==='rag'){
+    h=`<div class="box2"><b>Busca Semântica & Contexto (RAG)</b><div class="muted">Consulta a base vetorial de arquivos do workspace e decisões técnicas.</div>
+      <div class="row" style="margin-top:8px"><input id="ragQuery" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px" placeholder="Digite uma consulta (ex.: persistência de dados, inventory, workflow)…" onkeydown="if(event.key==='Enter')doRagSearch()"/>
+      <button class="sec" onclick="doRagSearch()">Buscar</button><button class="sec" onclick="doRagIndex()">Reindexar Workspace</button></div></div>
+      <div id="ragResults" style="margin-top:10px">${(X.ragResults||[]).length?X.ragResults.map(r=>`<div class="sc"><div class="sh"><b class="mono">${esc(r.metadata?.path||r.doc_id)}</b><span class="pill s-ok">score ${r.score}</span></div>
+        <div class="muted">${esc(r.metadata?.type||'doc')} · ${esc(r.chunk_id)}</div><pre style="max-height:120px">${esc(r.content)}</pre></div>`).join(''):'<span class="muted">Execute uma busca acima para consultar a base semântica.</span>'}</div>`;
+  }
   else if(tsec==='plan') h=`<pre style="max-height:600px">${esc(JSON.stringify({dependency_analysis:d.dependency_analysis, stages:d.stages, metrics:d.metrics, plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
   else if(tsec==='messages') h=(X.m||[]).map(x=>row(x.created_at,`${x.sender} → ${x.recipient}`,`${x.skill||''} ${x.a2a_state||''}`,x.summary)).join('')||none;
   else if(tsec==='files') h=(X.f||[]).map(c=>`<div class="lr"><b class="mono">${esc(c.path)}</b> <span class="muted">${esc(c.change_type)} · ${esc(c.agent)} · ${esc(c.source)}</span> ${c.within_reservation?pill('ok'):'<span class="pill s-err">fora da reserva</span>'}</div>`).join('')||'<span class="muted">Nenhuma alteração registrada.</span>';

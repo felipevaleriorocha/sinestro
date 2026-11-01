@@ -50,9 +50,17 @@ O sistema será capaz de receber uma solicitação, identificar o domínio (Robl
 
 ---
 
-## Fases Futuras
+## Fase 4: Roteamento Inteligente e Workspace Unificado (✅ CONCLUÍDA)
+- **Banco Vetorial Local & RAG:** Criação do `VectorStore` em `memory/vector_store.py` com persistência SQLite e vetorizador denso determinístico (`HashedDenseEmbedding`), permitindo busca semântica veloz e offline sem dependências externas.
+- **Context Manager Semântico:** Indexação automática de documentos do workspace e decisões técnicas no `ContextManager`, suportando `search_relevant` e `build_augmented` para injeção contextual precisa no planejamento e execução.
+- **Roteamento Inteligente Ciente de Capacidades e Custo:** `IntelligentRouter` em `orchestrator/assignment.py` avalia dinamicamente os modelos registrados no `CapabilityRegistry`, direcionando tarefas de alta complexidade/arquitetura para modelos de raciocínio e tarefas de assets/docs/boilerplate para modelos de melhor custo-eficiência.
+- **Métricas e Relatórios de Custo:** Cálculo e agregação de tokens e custos estimados por modelo e agente (`Repository.get_cost_summary`), expostos via `GET /metrics/costs` e `GET /providers`.
+- **Workspace Unificado & Dashboard:** Atualização do painel (`dashboard/index.html`) com suporte a múltiplos provedores, badges de capacidades (Reasoning, Code, Vision), tiers de custo, visualização de DAG de etapas, console RAG interativo e relatórios de custo em tempo real.
+- 183 testes aprovados (0 regressões).
 
-### Fase 4: Roteamento Inteligente e Workspace Unificado (Próxima)
-- Implementar banco vetorial local (SQLite VSS / ChromaDB) para o Context Manager (RAG).
-- Orquestrador seleciona agentes automaticamente pelo melhor rácio custo/capacidade.
-- Renovar o painel (`dashboard/index.html`) para suportar múltiplos projetos, acompanhamento unificado e relatórios de custo multiplataforma.
+---
+
+## Próximos Passos (Evolução Contínua)
+- Expansão de novos perfis de domínio (Web Fullstack, Data Science, Python Backend).
+- Suporte a modelos de visão e geração procedural de assets multimodais.
+- Monitoramento distribuído e execução remota de agentes em nuvem.

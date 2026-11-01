@@ -272,8 +272,73 @@ class Repository:
 
     def runs_for_workflow(self, workflow_id: str) -> list[dict]:
         with self.connect() as con:
-            return [dict(r) for r in con.execute(
-                "SELECT agent, skill, status, duration_seconds FROM agent_runs WHERE workflow_id=? ORDER BY id", (workflow_id,)).fetchall()]
+            rows = [dict(r) for r in con.execute(
+                "SELECT agent, skill, status, duration_seconds, model, usage_json FROM agent_runs WHERE workflow_id=? ORDER BY id",
+                (workflow_id,),
+            ).fetchall()]
+        for r in rows:
+            r["usage"] = _loads(r.pop("usage_json", None))
+        return rows
+
+    def get_cost_summary(self, workflow_id: str | None = None) -> dict[str, Any]:
+        """Calcula o resumo agregado de execuções, contagem de tokens e custos estimados."""
+        sql = "SELECT agent, model, status, duration_seconds, usage_json FROM agent_runs"
+        params: list[Any] = []
+        if workflow_id:
+            sql += " WHERE workflow_id=?"
+            params.append(workflow_id)
+
+        with self.connect() as con:
+            rows = [dict(r) for r in con.execute(sql, params).fetchall()]
+
+        by_agent: dict[str, dict[str, Any]] = {}
+        total_runs = len(rows)
+        total_tokens_in = 0
+        total_tokens_out = 0
+        total_estimated_usd = 0.0
+
+        for r in rows:
+            agent = r["agent"]
+            model = r.get("model") or "unknown"
+            usage = _loads(r.get("usage_json")) or {}
+            tok = usage.get("tokens") or {}
+            t_in = tok.get("prompt") or tok.get("input") or 0
+            t_out = tok.get("completion") or tok.get("output") or 0
+
+            rate_in = 1.25 if ("gemini" in agent.lower() or "gemini" in model.lower()) else 0.27
+            rate_out = 5.00 if ("gemini" in agent.lower() or "gemini" in model.lower()) else 1.10
+            cost = float(usage.get("cost") if usage.get("cost") is not None else ((t_in * rate_in + t_out * rate_out) / 1_000_000.0))
+
+            total_tokens_in += t_in
+            total_tokens_out += t_out
+            total_estimated_usd += cost
+
+            ag_stat = by_agent.setdefault(agent, {
+                "runs": 0, "successful": 0, "failed": 0,
+                "input_tokens": 0, "output_tokens": 0, "estimated_cost_usd": 0.0,
+                "models_used": set(),
+            })
+            ag_stat["runs"] += 1
+            if r["status"] == "completed":
+                ag_stat["successful"] += 1
+            else:
+                ag_stat["failed"] += 1
+            ag_stat["input_tokens"] += t_in
+            ag_stat["output_tokens"] += t_out
+            ag_stat["estimated_cost_usd"] = round(ag_stat["estimated_cost_usd"] + cost, 6)
+            ag_stat["models_used"].add(model)
+
+        for ag in by_agent.values():
+            ag["models_used"] = sorted(ag["models_used"])
+
+        return {
+            "workflow_id": workflow_id,
+            "total_runs": total_runs,
+            "total_tokens_in": total_tokens_in,
+            "total_tokens_out": total_tokens_out,
+            "total_estimated_usd": round(total_estimated_usd, 6),
+            "by_agent": by_agent,
+        }
 
     def get_session(self, agent: str, context_key: str) -> str | None:
         with self.connect() as con:

@@ -6,10 +6,15 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
+from core.capabilities import CapabilityRegistry, ModelCapability
 from orchestrator.schemas import AssignmentDecision, AssignmentResponseItem
+
+log = logging.getLogger("orchestrator.assignment")
 
 AGENTS = ("gemini", "deepseek")
 
@@ -18,6 +23,79 @@ def other(agent: str) -> str:
     if agent not in AGENTS:
         raise ValueError(f"Agente desconhecido: {agent}")
     return "deepseek" if agent == "gemini" else "gemini"
+
+
+class IntelligentRouter:
+    """Roteador inteligente ciente de capacidades de modelos e otimização de custo."""
+
+    HIGH_REASONING_CATEGORIES = {"architecture", "security", "core", "complex_logic", "planning"}
+    COST_EFFICIENT_CATEGORIES = {"asset", "assets", "boilerplate", "docs", "ui", "refactor", "tests"}
+
+    @classmethod
+    def route(
+        cls,
+        category: str,
+        files: list[str] | None = None,
+        registry: Any | None = None,
+        default_agent: str = "gemini",
+    ) -> tuple[str, str]:
+        """Seleciona o melhor agente com base em capacidades e rácio custo/eficiência."""
+        if not registry:
+            return default_agent, "default_agent"
+
+        cat = (category or "").lower()
+        cap_reg: CapabilityRegistry | None = getattr(registry, "capability_registry", None)
+
+        # Categorias de alto raciocínio exigem ModelCapability.REASONING
+        if cat in cls.HIGH_REASONING_CATEGORIES:
+            candidates = []
+            for name in getattr(registry, "names", lambda: [])():
+                ok, _ = registry.can_accept(name)
+                if not ok:
+                    continue
+                state = registry.get(name)
+                backend = state.backend
+                model_id = getattr(backend, "model", "")
+                has_reasoning = (
+                    cap_reg.has_capability(model_id, ModelCapability.REASONING)
+                    if cap_reg
+                    else ("gemini" in name)
+                )
+                if has_reasoning:
+                    candidates.append(name)
+            if candidates:
+                return candidates[0], f"intelligent_reasoning:{cat}"
+
+        # Categorias de asset / boilerplate / docs / ui priorizam o menor custo de modelo
+        if cat in cls.COST_EFFICIENT_CATEGORIES:
+            candidates_with_cost = []
+            for name in getattr(registry, "names", lambda: [])():
+                ok, _ = registry.can_accept(name)
+                if not ok:
+                    continue
+                state = registry.get(name)
+                backend = state.backend
+                model_id = getattr(backend, "model", "")
+                spec = cap_reg.get_model(model_id) if cap_reg else None
+                cost = (spec.cost_per_million_input + spec.cost_per_million_output) if spec else (0.27 if "deepseek" in name else 1.25)
+                candidates_with_cost.append((name, cost))
+
+            if candidates_with_cost:
+                candidates_with_cost.sort(key=lambda x: x[1])
+                cheapest_agent = candidates_with_cost[0][0]
+                return cheapest_agent, f"intelligent_cost_efficiency:{cat}"
+
+        # Se nenhum critério específico foi acionado, verifica disponibilidade do default
+        ok, _ = registry.can_accept(default_agent)
+        if ok:
+            return default_agent, "default_agent"
+
+        for name in getattr(registry, "names", lambda: [])():
+            ok, _ = registry.can_accept(name)
+            if ok:
+                return name, f"intelligent_available_fallback:{name}"
+
+        return default_agent, "default_agent"
 
 
 @dataclass
@@ -55,7 +133,7 @@ class AssignmentRules:
                                                        for i in range(1, path.count("/") + 1))
         return False
 
-    def decide(self, category: str, files: list[str]) -> tuple[str, str]:
+    def decide(self, category: str, files: list[str], registry: Any | None = None) -> tuple[str, str]:
         """Retorna (agente, regra aplicada)."""
         cat = (category or "").lower()
         if cat in self.categories:
@@ -64,12 +142,15 @@ class AssignmentRules:
             for f in files or []:
                 if self._match(f, rule["pattern"]):
                     return str(rule["agent"]).lower(), f"path:{rule['pattern']}"
+        if registry:
+            return IntelligentRouter.route(cat, files, registry, self.default_agent)
         return self.default_agent, "default_agent"
 
 
 def resolve_assignment(task: dict, proposed_by: str, response: AssignmentResponseItem | None, responder: str | None,
-                       rules: AssignmentRules, gemini_unavailable_reason: str | None) -> AssignmentDecision:
-    """Decisão final de uma subtarefa. No máximo 2 turnos (proposta + resposta); o desempate é por regras, sem 3ª rodada."""
+                       rules: AssignmentRules, gemini_unavailable_reason: str | None,
+                       registry: Any | None = None) -> AssignmentDecision:
+    """Decisão final de uma subtarefa. No máximo 2 turnos (proposta + resposta); o desempate é por regras/roteamento inteligente."""
     proposed = task.get("assigned_to") or task.get("agent") or "deepseek"
     base = {"task_id": task.get("id", ""), "proposed_by": proposed_by, "proposed_to": proposed,
             "proposal_reason": task.get("assignment_reason", ""), "responder": responder}
@@ -81,8 +162,8 @@ def resolve_assignment(task: dict, proposed_by: str, response: AssignmentRespons
         assigned, decided_by, rule, reason = proposed, "consensus", "", "Proposta aceita."
         base["response"] = "accept"
     else:
-        assigned, rule = rules.decide(task.get("category", "other"), task.get("files", []))
-        decided_by = "rules"
+        assigned, rule = rules.decide(task.get("category", "other"), task.get("files", []), registry=registry)
+        decided_by = "rules" if ("category:" in rule or "path:" in rule or "default" in rule) else "intelligent_routing"
         reason = f"Contestação de {responder}; desempate por {rule} -> {assigned}."
         base.update(response="counter", counter_reason=response.reason)
     if assigned == "gemini" and gemini_unavailable_reason:

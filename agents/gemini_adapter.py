@@ -140,6 +140,9 @@ class GeminiProvider(Provider):
                     ModelCapability.READ_ONLY,
                 }),
                 context_window=1_000_000,
+                cost_per_million_input=1.25,
+                cost_per_million_output=5.00,
+                cost_tier="high",
                 description="Google Gemini Argon High com raciocínio e suporte a contexto longo.",
             )
         ]

@@ -313,6 +313,44 @@ async def context(request: Request, include_text: bool = False) -> dict:
     return bundle.to_dict(include_text)
 
 
+@router.get("/context/search", tags=["Memória"])
+async def context_search(request: Request, q: str = Query(..., min_length=2), top_k: int = Query(5, ge=1, le=20)) -> list[dict]:
+    c = C(request)
+    results = await asyncio.to_thread(c.context.search_relevant, q, top_k)
+    return [r.to_dict() for r in results]
+
+
+@router.post("/context/index", tags=["Memória"])
+async def context_index(request: Request, refresh: bool = False) -> dict:
+    c = C(request)
+    count = await asyncio.to_thread(c.context.index_workspace, refresh=refresh)
+    return {"indexed_chunks": count, "total_chunks": c.context.vector_store.count()}
+
+
+@router.get("/metrics/costs", tags=["Sistema"])
+def metrics_costs(request: Request, workflow_id: str | None = None) -> dict:
+    return C(request).repo.get_cost_summary(workflow_id)
+
+
+@router.get("/providers", tags=["Provedores"])
+def list_providers(request: Request) -> list[dict]:
+    c = C(request)
+    cap_reg = c.capability_registry
+    if not cap_reg:
+        return []
+    models = cap_reg.describe()
+    out = []
+    for p in cap_reg.list_providers():
+        out.append({
+            "id": p.id,
+            "name": p.name,
+            "kind": getattr(p, "kind", "provider"),
+            "description": getattr(p, "description", ""),
+            "models": [m for m in models if m["provider_id"] == p.id],
+        })
+    return out
+
+
 @router.get("/checks/status", tags=["Integrações"])
 async def checks_status(request: Request) -> dict:
     """Checagens automáticas configuradas/instaladas (sem executar nada)."""

@@ -135,6 +135,7 @@ class Settings:
     context_file_max_chars: int = 12000
     context_sources_file: Path = BASE_DIR / "config" / "context_sources.json"
     mcp_config_file: Path = BASE_DIR / "config" / "mcp_servers.json"
+    vector_store_file: Path = BASE_DIR / "runtime" / "vector_store.db"
 
     def secrets(self) -> list[str]:
         return [s for s in (self.opencode_password,) if s]
@@ -240,5 +241,6 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         context_file_max_chars=_int(g("CONTEXT_FILE_MAX_CHARS"), 12000, 500),
         context_sources_file=_path(g("CONTEXT_SOURCES_FILE"), BASE_DIR / "config" / "context_sources.json"),
         mcp_config_file=_path(g("MCP_CONFIG_FILE"), BASE_DIR / "config" / "mcp_servers.json"),
+        vector_store_file=_path(g("VECTOR_STORE_FILE"), BASE_DIR / "runtime" / "vector_store.db"),
     )
 

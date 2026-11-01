@@ -25,6 +25,7 @@ from domains.roblox import RobloxDomainProfile
 from mcp_bridge.server_registry import MCPServerRegistry
 from memory.context_manager import ContextManager
 from memory.decision_store import DecisionStore
+from memory.vector_store import VectorStore
 from orchestrator.agent_registry import AGENT_DEFINITIONS, AgentRegistry
 from orchestrator.assignment import AssignmentRules
 from orchestrator.checks import ChecksRunner
@@ -106,6 +107,7 @@ def build_container(
     task_store = DatabaseTaskStore(engine)  # tabela padrão do SDK ("tasks") dentro de orchestrator_a2a.db
     decisions = DecisionStore(repo)
     context_data = domain.load_context_sources()
+    vector_store = VectorStore(settings.vector_store_file)
     context = ContextManager(
         settings.project_root,
         settings.context_sources_file,
@@ -113,6 +115,7 @@ def build_container(
         settings.context_max_chars,
         settings.context_file_max_chars,
         sources_config=context_data,
+        vector_store=vector_store,
     )
     locks = FileLockManager(repo, settings.project_root, settings.file_lock_ttl_seconds)
     git = GitInspector(settings.project_root)

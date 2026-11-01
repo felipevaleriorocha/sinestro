@@ -25,7 +25,18 @@ class MockProvider(Provider):
     kind = "mock"
     description = "Provedor simulado para testes unitários e de integração"
 
-    def __init__(self, name: str, model: str, responder: Responder | None = None, delay: float = 0.0):
+    def __init__(
+        self,
+        name: str,
+        model: str,
+        responder: Responder | None = None,
+        delay: float = 0.0,
+        capabilities: frozenset[ModelCapability] | None = None,
+        cost_per_million_input: float | None = None,
+        cost_per_million_output: float | None = None,
+        cost_tier: str | None = None,
+    ):
+        self.id = f"mock-{name}"
         self.name = name
         self._model = model
         self.responder = responder or (lambda skill, prompt, calls: json.dumps({"summary": "ok"}))
@@ -35,6 +46,24 @@ class MockProvider(Provider):
         self.raise_on_run: Exception | None = None
         self.raise_on_skill: dict[str, Exception] = {}
         self._cancel: dict[str, threading.Event] = {}
+
+        is_deepseek = "deepseek" in name.lower()
+        if capabilities is not None:
+            self._capabilities = capabilities
+        elif is_deepseek:
+            self._capabilities = frozenset({ModelCapability.TEXT, ModelCapability.CODE, ModelCapability.READ_ONLY})
+        else:
+            self._capabilities = frozenset({
+                ModelCapability.TEXT,
+                ModelCapability.CODE,
+                ModelCapability.REASONING,
+                ModelCapability.READ_ONLY,
+                ModelCapability.VISION,
+            })
+
+        self._cost_in = cost_per_million_input if cost_per_million_input is not None else (0.27 if is_deepseek else 1.25)
+        self._cost_out = cost_per_million_output if cost_per_million_output is not None else (1.10 if is_deepseek else 5.00)
+        self._cost_tier = cost_tier or ("low" if is_deepseek else "high")
 
     @property
     def default_model(self) -> str:
@@ -50,14 +79,11 @@ class MockProvider(Provider):
                 id=self._model,
                 name=f"{self.name} Mock Model",
                 provider_id=self.id,
-                capabilities=frozenset({
-                    ModelCapability.TEXT,
-                    ModelCapability.CODE,
-                    ModelCapability.REASONING,
-                    ModelCapability.READ_ONLY,
-                    ModelCapability.VISION,
-                }),
-                context_window=128_000,
+                capabilities=self._capabilities,
+                context_window=64_000 if "deepseek" in self.name.lower() else 1_000_000,
+                cost_per_million_input=self._cost_in,
+                cost_per_million_output=self._cost_out,
+                cost_tier=self._cost_tier,
                 description="Modelo simulado para testes.",
             )
         ]

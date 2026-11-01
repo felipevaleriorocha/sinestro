@@ -199,6 +199,9 @@ class OpenCodeProvider(Provider):
                     ModelCapability.READ_ONLY,
                 }),
                 context_window=64_000,
+                cost_per_million_input=0.27,
+                cost_per_million_output=1.10,
+                cost_tier="low",
                 description="DeepSeek V4.1 Flash Free servido via OpenCode HTTP.",
             )
         ]

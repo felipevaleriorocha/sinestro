@@ -36,6 +36,9 @@ class ModelSpec:
     context_window: int = 128_000
     max_output_tokens: int = 8_192
     description: str = ""
+    cost_per_million_input: float = 0.0
+    cost_per_million_output: float = 0.0
+    cost_tier: str = "standard"  # "low", "standard", "high"
 
     def supports(self, cap: ModelCapability | str) -> bool:
         """Verifica se o modelo suporta a capacidade solicitada."""
@@ -45,6 +48,25 @@ class ModelSpec:
             except ValueError:
                 return False
         return cap in self.capabilities
+
+    def estimate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """Calcula o custo estimado em dólares para a contagem de tokens informada."""
+        return (input_tokens * self.cost_per_million_input + output_tokens * self.cost_per_million_output) / 1_000_000.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serializa metadados do modelo para inspeção e API."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "provider_id": self.provider_id,
+            "capabilities": sorted(c.value for c in self.capabilities),
+            "context_window": self.context_window,
+            "max_output_tokens": self.max_output_tokens,
+            "description": self.description,
+            "cost_per_million_input": self.cost_per_million_input,
+            "cost_per_million_output": self.cost_per_million_output,
+            "cost_tier": self.cost_tier,
+        }
 
 
 class CapabilityRegistry:
@@ -89,3 +111,31 @@ class CapabilityRegistry:
         """Verifica se um determinado modelo possui a capacidade solicitada."""
         m = self.get_model(model_id)
         return m.supports(capability) if m else False
+
+    def find_optimal_model(
+        self,
+        required_capabilities: set[ModelCapability] | frozenset[ModelCapability],
+        prefer_cost_efficiency: bool = True,
+    ) -> ModelSpec | None:
+        """Encontra o modelo ótimo que satisfaz todas as capacidades requeridas."""
+        matching = [
+            m for m in self._models.values()
+            if all(m.supports(cap) for cap in required_capabilities)
+        ]
+        if not matching:
+            return None
+
+        if prefer_cost_efficiency:
+            matching.sort(key=lambda m: (m.cost_per_million_input + m.cost_per_million_output, -m.context_window))
+        else:
+            matching.sort(key=lambda m: (-len(m.capabilities), m.cost_per_million_input))
+        return matching[0]
+
+    def estimate_cost(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
+        """Estima o custo em dólares para um modelo específico."""
+        m = self.get_model(model_id)
+        return m.estimate_cost(input_tokens, output_tokens) if m else 0.0
+
+    def describe(self) -> list[dict[str, Any]]:
+        """Retorna especificações de todos os modelos serializadas."""
+        return [m.to_dict() for m in self._models.values()]
