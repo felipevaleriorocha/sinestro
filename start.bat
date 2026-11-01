@@ -10,17 +10,7 @@ if not exist "%ORCH%start.ps1" (
     exit /b 1
 )
 
-echo Iniciando servidor OpenCode...
-start "OpenCode (DeepSeek)" powershell -NoExit -ExecutionPolicy Bypass -File "%ORCH%\run_opencode.ps1"
-
-echo Aguardando o OpenCode subir...
-timeout /t 5 /nobreak >nul
-
-echo Iniciando orquestrador...
-start "Orquestrador" powershell -NoExit -ExecutionPolicy Bypass -File "%ORCH%\start.ps1"
-
-echo Aguardando o orquestrador subir...
-timeout /t 8 /nobreak >nul
-start "" "http://127.0.0.1:8787/dashboard/"
+echo [Sinestro] Iniciando OpenCode e Orquestrador em segundo plano (headless)...
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%ORCH%scripts\start_headless.ps1"
 
 endlocal
