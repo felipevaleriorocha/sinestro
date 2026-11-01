@@ -48,7 +48,7 @@ def C(request: Request):
 @router.get("/health", tags=["Sistema"])
 async def health(request: Request) -> dict[str, Any]:
     c = C(request)
-    return {"ok": True, "version": "0.5.0", "mock_mode": c.mock_mode, **c.settings.public_summary(),
+    return {"ok": True, "version": "0.5.1", "mock_mode": c.mock_mode, **c.settings.public_summary(),
             "git_repo": await asyncio.to_thread(c.git.is_repo)}
 
 
