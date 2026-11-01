@@ -1,0 +1,31 @@
+{
+  "_leia_me": [
+    "Tabela de DESEMPATE usada pelo orquestrador quando o agente revisor contesta a proposta de atribuição.",
+    "Não é enviada aos modelos (os prompts só listam as categorias permitidas).",
+    "Ordem: 1) categoria declarada no plano; 2) path_rules (primeiro padrão que casar com algum arquivo); 3) default_agent.",
+    "Depois do desempate, se o agente escolhido for o Gemini e ele estiver sem cota, o DeepSeek assume (evento quota_fallback).",
+    "default_agent: altere para \"deepseek\" se quiser poupar a cota semanal do Argon nos casos de dúvida."
+  ],
+  "default_agent": "gemini",
+  "categories": {
+    "architecture": "gemini",
+    "security": "gemini",
+    "server": "gemini",
+    "datastore": "gemini",
+    "remotes": "gemini",
+    "ui": "deepseek",
+    "boilerplate": "deepseek",
+    "mechanical": "deepseek",
+    "config": "deepseek"
+  },
+  "path_rules": [
+    {"pattern": "**/ServerScriptService/**", "agent": "gemini",   "label": "server"},
+    {"pattern": "src/server/**",             "agent": "gemini",   "label": "server"},
+    {"pattern": "**/*DataStore*",            "agent": "gemini",   "label": "datastore"},
+    {"pattern": "**/*Remote*",               "agent": "gemini",   "label": "remotes"},
+    {"pattern": "**/StarterGui/**",          "agent": "deepseek", "label": "ui"},
+    {"pattern": "src/client/**/UI/**",       "agent": "deepseek", "label": "ui"},
+    {"pattern": "**/*.json",                 "agent": "deepseek", "label": "config"},
+    {"pattern": "**/*.toml",                 "agent": "deepseek", "label": "config"}
+  ]
+}
