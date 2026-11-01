@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — revisão final sem furos
+- `final_review_state` sempre gravado (passed, disabled, skipped, failed, changes_requested, rejected, unverified,
+  invalidated, not_reached, accepted_by_human, rejected_by_human) e decisão centralizada na função pura `final_status()`.
+- Novo status `completed_unreviewed`: subtarefas aprovadas, mas sem revisão final. Nunca vira `completed` limpo.
+- Revisor da revisão final nunca é quem implementou tudo; no caso misto, Gemini com regra assimétrica e
+  `self_authored_subtasks` + cobertura por subtarefa no resultado.
+- Revisão final focada em integração, com evidência, reformulação única, comparação de hash e modo somente leitura.
+- Retomada de `completed_unreviewed`/`needs_human` final roda só a revisão final (tentativa + snapshot; evento se o
+  workspace mudou). `POST /tasks/{id}/final-review/decision` (accept|reject). Veredito negativo -> `needs_human`.
+- Painel: selo "revisão final desligada", aviso "sem revisão final", seção da revisão final. Schema 5 (backup `.bak-v4`).
+
 ## 0.4.0 — papéis simétricos
 - Os dois agentes têm as mesmas skills A2A: `plan_feature`, `respond_assignment`, `implement_task`,
   `review_implementation` e `final_review`. **Quem implementa nunca revisa**: o revisor é calculado como o outro agente,

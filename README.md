@@ -1,4 +1,4 @@
-# Roblox Multi-Agent Orchestrator — v0.4 (papéis simétricos)
+# Roblox Multi-Agent Orchestrator — v0.4.1 (papéis simétricos)
 
 Orquestrador multiagente local para o **AFK Evolution Simulator**. **Gemini 4 Argon High** (Antigravity CLI) e
 **DeepSeek V4.1 Flash Free** (OpenCode 2.x) planejam, implementam e revisam. Eles conversam por **A2A 1.0**
@@ -25,6 +25,27 @@ Por subtarefa (dependentes só começam quando a dependência está APROVADA):
                     todos descartados -> UMA reformulação -> persistiu -> review_unverified -> needs_human
                     revisor alterou arquivos -> veredito invalidado -> needs_human
 6. Ajuste           até MAX_REVIEW_CYCLES ciclos; discordância persistente -> needs_human (resumo dos dois lados)
+7. Revisão final  integração entre subtarefas (interfaces, remotes, requires, estado compartilhado, nomes)
+                    revisor: o OUTRO agente se um só implementou tudo; misto -> Gemini com regra assimétrica
+                    (achados dele bloqueiam, mas a aprovação não cobre o que ele mesmo fez: self_authored_subtasks)
+                    mesma exigência de evidência, reformulação única, hash antes/depois, modo somente leitura
+```
+`final_review_state` é sempre gravado. `final_status()` em `orchestrator/task_manager.py` é a única regra:
+
+| final_review_state | Status do workflow (com todas as subtarefas aprovadas) |
+|---|---|
+| `passed` | `completed` |
+| `disabled` (FINAL_REVIEW=false) | `completed`, com o selo "revisão final desligada" no painel |
+| `accepted_by_human` | `completed` |
+| `skipped` / `failed` | `completed_unreviewed`: **Retomar** roda SÓ a revisão final |
+| `changes_requested` / `rejected` / `unverified` / `invalidated` | `needs_human`: aceitar, rejeitar ou Retomar para nova revisão final |
+| `rejected_by_human` | `failed` |
+| `not_reached` | nem todas as subtarefas foram aprovadas (vale o status delas) |
+
+A retomada só da revisão final não replaneja, não renegocia e não mexe em atribuições nem em contadores. Ela registra
+o número da tentativa e o snapshot (hash) dos arquivos revisados; se algo mudou desde a tentativa anterior, roda no
+estado atual e gera o evento `final_review_workspace_changed`. Não há ciclo automático de correção depois da revisão final.
+
 ```
 Hierarquia em discordância: **checagem automática > revisor com evidência > escalonar para você**.
 
@@ -67,6 +88,7 @@ O `.env` existente continua válido: todas as chaves novas têm valor padrão. A
 | Nova tarefa | Painel, ou `POST /tasks` com `{"goal": "...", "mode": "plan_only" \| "full"}` |
 | Decidir subtarefa em `needs_human` | Botões no painel, ou `POST /tasks/{id}/subtasks/{sid}/decision` com `{"action": "approve\|retry\|reassign\|reject", "note": "..."}` |
 | Retomar (depois das decisões, cota liberada, pausa) | Botão **Retomar**, ou `POST /tasks/{id}/resume` |
+| Decidir parecer da revisão final | Botões no painel, ou `POST /tasks/{id}/final-review/decision` com `{"action": "accept\|reject", "note": "..."}` |
 | Liberar cota manualmente | `POST /agents/{gemini\|deepseek}/clear-quota` |
 | Estado das checagens | `GET /checks/status` |
 | Métricas de negociação/chamadas | Aba "Plano/Métricas/Resultado" do painel, ou campo `metrics` de `GET /tasks/{id}` |
