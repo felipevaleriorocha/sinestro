@@ -204,6 +204,12 @@ async def context(request: Request, include_text: bool = False) -> dict:
     return bundle.to_dict(include_text)
 
 
+@router.get("/checks/status", tags=["Integrações"])
+async def checks_status(request: Request) -> dict:
+    """Checagens automáticas configuradas/instaladas (sem executar nada)."""
+    return await asyncio.to_thread(C(request).checks.status)
+
+
 @router.get("/mcp/status", tags=["Integrações"])
 async def mcp_status(request: Request) -> dict:
     return await asyncio.to_thread(C(request).mcp.status)

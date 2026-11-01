@@ -23,7 +23,7 @@ log = logging.getLogger("orchestrator")
 
 
 def create_app(settings: Settings | None = None, backends: dict[str, AgentBackend] | None = None,
-               a2a_in_process: bool = False, configure_logging: bool = True) -> FastAPI:
+               a2a_in_process: bool = False, configure_logging: bool = True, checks=None) -> FastAPI:
     settings = settings or load_settings()
     register_secrets(settings.secrets())
     if configure_logging:
@@ -36,7 +36,7 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
         factory = lambda: httpx.AsyncClient(transport=httpx.ASGITransport(app=holder["app"]), base_url=settings.public_url,  # noqa: E731
                                             timeout=60)
 
-    container = build_container(settings, backends, factory)
+    container = build_container(settings, backends, factory, checks)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -44,7 +44,7 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
         yield
         await shutdown(app)
 
-    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version="0.4.0", lifespan=lifespan)
     holder["app"] = app
     app.state.container = container
     app.state.started = False

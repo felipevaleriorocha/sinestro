@@ -21,6 +21,8 @@ from mcp_bridge.server_registry import MCPServerRegistry
 from memory.context_manager import ContextManager
 from memory.decision_store import DecisionStore
 from orchestrator.agent_registry import AGENT_DEFINITIONS, AgentRegistry
+from orchestrator.assignment import AssignmentRules
+from orchestrator.checks import ChecksRunner
 from orchestrator.coordinator import Coordinator
 from orchestrator.file_locks import FileLockManager
 from orchestrator.git_integration import GitInspector
@@ -46,10 +48,12 @@ class Container:
     git: GitInspector
     mcp: MCPServerRegistry
     coordinator: Coordinator
+    checks: ChecksRunner
 
 
 def build_container(settings: Settings, backends: dict[str, AgentBackend] | None = None,
-                    http_client_factory: Callable[[], httpx.AsyncClient] | None = None) -> Container:
+                    http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
+                    checks: ChecksRunner | None = None) -> Container:
     repo = Repository(settings.db_path)
     mock_mode = False
     if backends is None:
@@ -82,6 +86,8 @@ def build_container(settings: Settings, backends: dict[str, AgentBackend] | None
     agent_urls = {name: f"{settings.public_url}{agent_base_path(name)}" for name in backends}
     a2a = A2AAgentClient(repo, agent_urls, http_client_factory=http_client_factory,
                          poll_interval=settings.a2a_poll_interval, task_timeout=settings.a2a_task_timeout)
-    coordinator = Coordinator(settings, repo, tasks, registry, a2a, context, decisions, locks, git, mcp)
+    checks = checks or ChecksRunner(settings.project_root, settings.checks_file)
+    coordinator = Coordinator(settings, repo, tasks, registry, a2a, context, decisions, locks, git, mcp,
+                              checks=checks, rules=AssignmentRules.load(settings.assignment_rules_file))
     return Container(settings, repo, backends, mock_mode, engine, task_store, tasks, registry, a2a, context, decisions,
-                     locks, git, mcp, coordinator)
+                     locks, git, mcp, coordinator, checks)

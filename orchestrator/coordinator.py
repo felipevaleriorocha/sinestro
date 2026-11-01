@@ -37,7 +37,7 @@ class WorkflowAbort(RuntimeError):
 class Coordinator:
     def __init__(self, settings: Settings, repo: Repository, tasks: TaskManager, registry: AgentRegistry,
                  a2a: A2AAgentClient, context: ContextManager, decisions: DecisionStore, locks: FileLockManager,
-                 git: GitInspector, mcp: MCPServerRegistry):
+                 git: GitInspector, mcp: MCPServerRegistry, checks=None, rules=None):
         self.s = settings
         self.repo = repo
         self.tasks = tasks
@@ -48,6 +48,8 @@ class Coordinator:
         self.locks = locks
         self.git = git
         self.mcp = mcp
+        self.checks = checks
+        self.rules = rules
         self._running: dict[str, asyncio.Task] = {}
         self._workflow_gate = asyncio.Semaphore(1)  # workflows serializados (atribuição de mudanças via Git fica confiável)
 

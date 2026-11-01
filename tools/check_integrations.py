@@ -18,6 +18,7 @@ from agents.opencode_adapter import OpenCodeAdapter  # noqa: E402
 from core.config import BASE_DIR, load_settings  # noqa: E402
 from core.logging_setup import redact, register_secrets  # noqa: E402
 from mcp_bridge.server_registry import MCPServerRegistry  # noqa: E402
+from orchestrator.checks import ChecksRunner  # noqa: E402
 
 OK, WARN, FAIL = "OK", "AVISO", "FALHA"
 
@@ -53,6 +54,10 @@ def main() -> int:
     finally:
         oc.close()
 
+    chk = ChecksRunner(s.project_root, s.checks_file).status()
+    add("Checagens automáticas", OK if chk["any_active"] else WARN,
+        f"ativas: {', '.join(chk['active'])}" if chk["any_active"] else "nenhuma checagem ativa (revisões sem verificação automática)", chk)
+
     mcp = MCPServerRegistry(s.mcp_config_file).status()
     add("MCP", OK if mcp else WARN, "configurado" if mcp else f"sem {s.mcp_config_file.name} (opcional nesta etapa)", mcp)
 
@@ -83,8 +88,20 @@ def main() -> int:
                     print(f"         modelo: found={model.get('found')} enabled={model.get('enabled')} variants={model.get('variants')}")
                 print(f"         agentes OpenCode: {r['data'].get('opencode_agents')}")
             if r["area"] == "Gemini / agy" and isinstance(r["data"], dict):
-                print(f"         binário: {r['data'].get('binary')}  wrapper .cmd: {r['data'].get('cmd_wrapper')}  "
-                      f"flag esforço: {r['data'].get('effort_flag')}  flag retomada: {r['data'].get('resume_flag')}")
+                d = r["data"]
+                print(f"         binário: {d.get('binary')}  wrapper .cmd: {d.get('cmd_wrapper')}  "
+                      f"flag esforço: {d.get('effort_flag')}  flag retomada: {d.get('resume_flag')}")
+                print(f"         --mode: {d.get('mode_flag')}  revisão somente leitura: {d.get('read_only_mode')}  "
+                      f"modo implementação: {d.get('implement_mode') or 'padrão do agy'}  --add-dir: {d.get('add_dir_flag')}")
+            if r["area"] == "DeepSeek / OpenCode" and isinstance(r["data"], dict):
+                for label in ("implement_agent", "review_agent"):
+                    info = r["data"].get(label) or {}
+                    if info:
+                        print(f"         {label}: {info.get('name')} (existe em /api/agent: {info.get('available')})")
+            if r["area"] == "Checagens automáticas" and isinstance(r["data"], dict):
+                for c in r["data"]["checks"]:
+                    print(f"         - {c['id']:<13} instalada: {str(c['installed']):<5} ligada: {str(c['enabled']):<5} "
+                          f"{c['path'] or ''}")
         print("\nNenhum prompt foi enviado aos modelos (sem consumo de tokens).")
     return 1 if any(r["status"] == FAIL for r in results) else 0
 
