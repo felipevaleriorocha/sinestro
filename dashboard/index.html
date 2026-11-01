@@ -15,7 +15,7 @@ a{color:var(--blue);cursor:pointer;text-decoration:none} a:hover{text-decoration
 header{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
 .brand{font-weight:600;flex:1} #nav{display:flex;gap:6px}
 #nav button,.tnav button{background:none;color:var(--muted)} #nav button.on{background:var(--raised);color:var(--text)}
-main{max-width:1000px;margin:0 auto;padding:18px 20px 40px} #tech{max-width:1400px}
+main{width:100%;box-sizing:border-box;max-width:1100px;margin:0 auto;padding:24px 28px 48px} #tech{max-width:1400px;width:100%;margin:0 auto}
 button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
 button.sec{background:#243049} button.danger{background:#b62324}
 .bd{background:#243049;border-radius:8px;padding:0 6px;font-size:11px} .bd.e{background:#b62324} .bd:empty{display:none}
@@ -25,12 +25,12 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .s-err,.s-failed,.s-rejected,.s-unavailable,.s-canceled{color:var(--err);border-color:var(--err)}
 .s-run,.s-planning,.s-delegating,.s-reviewing,.s-running,.s-queued,.s-pending{color:var(--blue);border-color:var(--blue)}
 /* Início */
-#idle{min-height:64vh;display:flex;flex-direction:column;justify-content:center;gap:24px}
-#idle h1{font:400 34px/1.2 Georgia,'Iowan Old Style',serif;text-align:center;margin:0}
-.box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,.35)}
+#idle{min-height:68vh;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:30px;max-width:760px;margin:0 auto;width:100%}
+#idle h1{font:400 36px/1.25 Georgia,'Iowan Old Style',serif;text-align:center;margin:0;color:var(--text);letter-spacing:-0.01em}
+.box{width:100%;background:#111726;border:1px solid var(--line);border-radius:20px;padding:18px 20px;box-shadow:0 12px 36px rgba(0,0,0,.4);transition:border-color .2s ease}
 .box:focus-within{border-color:var(--blue)}
-.box textarea{width:100%;background:none;border:0;outline:0;resize:none;color:var(--text);font:16px/1.5 inherit;font-family:inherit;max-height:240px}
-.bar2{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.box textarea{width:100%;background:none;border:0;outline:0;resize:none;color:var(--text);font:15px/1.6 inherit;font-family:inherit;min-height:56px;max-height:240px;padding:2px 0}
+.bar2{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;gap:12px}
 .bar2-right{display:flex;align-items:center;gap:14px}
 .auto-approve-wrap{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .auto-approve-txt{font-size:12px;font-weight:500;color:var(--muted);transition:color .2s ease}
@@ -47,24 +47,31 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .send{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center} .send svg{width:18px;height:18px}
 #run{animation:fade .5s ease}
 @keyframes fade{from{opacity:0}}
-.top-row{display:grid;grid-template-columns:260px 1fr 180px;gap:16px;align-items:stretch;margin-top:14px}
-.subtasks-col{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:180px}
+.top-row{display:grid;grid-template-columns:290px 1fr;gap:16px;align-items:stretch;margin-top:14px}
+.subtasks-col{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;min-height:220px;box-sizing:border-box}
 .subtasks-header{display:flex;align-items:center;justify-content:space-between}
-.subtasks-title-wrap{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.subtasks-count{font-size:11px;color:var(--muted);font-family:var(--mono)}
-.subtasks-list{display:flex;flex-direction:column;gap:5px;overflow-y:auto;max-height:220px}
-.subtask-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.02);cursor:pointer;transition:all .15s ease}
+.subtasks-title-wrap{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--text)}
+.subtasks-count{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.subtasks-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:220px;flex:1}
+.subtask-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.02);cursor:pointer;transition:all .15s ease}
 .subtask-row:hover{background:rgba(255,255,255,.06);color:var(--text)}
-.subtask-title{font-size:12px;color:var(--text);flex:1;min-width:0}
-.subtask-tag{font-size:10px;padding:1px 6px;border-radius:4px;font-family:var(--mono);text-transform:lowercase}
+.subtask-num{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:700;flex-shrink:0}
+.num-ok{background:rgba(47,214,123,.16);color:#2fd67b;border:1px solid rgba(47,214,123,.35)}
+.num-run{background:rgba(76,141,255,.16);color:#4c8dff;border:1px solid rgba(76,141,255,.35)}
+.num-err{background:rgba(240,107,98,.18);color:#f06b62;border:1px solid rgba(240,107,98,.35)}
+.num-warn{background:rgba(224,168,58,.18);color:#e0a83a;border:1px solid rgba(224,168,58,.35)}
+.num-pending{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--line)}
+.subtask-title{font-size:12.5px;color:var(--text);flex:1;min-width:0}
 .subtasks-empty{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:14px 4px}
-.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:0}
-.sel-col{border-left:1px solid var(--line);padding-left:18px;display:flex;flex-direction:column;justify-content:center;gap:8px}
-.sel-header{display:flex;align-items:center;gap:10px}
-.sel-ico{width:26px;height:26px;display:grid;place-items:center;flex-shrink:0}
-.sel-ico svg{width:24px;height:24px}
-.sel-title{font-size:17px;font-weight:700;color:var(--text)}
-.sel-status{font-size:12.5px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:0;align-items:stretch}
+.selene-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:8px;font-size:12px;background:rgba(255,255,255,.03);border:1px solid var(--line);vertical-align:middle}
+.selene-chip .selene-ico{display:grid;place-items:center;width:14px;height:14px}
+.selene-chip .selene-ico svg{width:14px;height:14px}
+.selene-chip.chip-ok{border-color:rgba(47,214,123,.3);color:var(--green);background:rgba(47,214,123,.06)}
+.selene-chip.chip-run{border-color:rgba(76,141,255,.3);color:var(--blue);background:rgba(76,141,255,.06)}
+.selene-chip.chip-warn{border-color:rgba(224,168,58,.3);color:var(--warn);background:rgba(224,168,58,.06)}
+.selene-chip.chip-err{border-color:rgba(240,107,98,.3);color:var(--err);background:rgba(240,107,98,.06)}
+.selene-chip.chip-muted{border-color:var(--line);color:var(--muted)}
 .chat-thread{display:flex;flex-direction:column;gap:14px;margin-top:16px}
 .chat-thread-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
 .chat-status-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -76,6 +83,10 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .btn-cancel:hover{background:rgba(240,107,98,0.12);border-color:var(--err);color:var(--err)}
 .btn-primary{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:6px 16px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s ease}
 .btn-primary:hover{background:#1d4ed8}
+.btn-resume{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s ease}
+.btn-resume:hover{background:#1d4ed8}
+.btn-err-details{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s ease}
+.btn-err-details:hover{background:rgba(255,255,255,.1)}
 .chat-messages{display:flex;flex-direction:column;gap:12px}
 .msg-bubble{display:flex;gap:14px;padding:16px 18px;border-radius:16px;border:1px solid var(--line)}
 .msg-user{background:#131a29;border-color:rgba(255,255,255,.08)}
@@ -92,6 +103,16 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .exec-bubble-box{display:flex;flex-direction:column;gap:6px}
 .exec-bubble-title{font-size:13.5px;font-weight:700}
 .alert-box{background:rgba(224,168,58,.08);border:1px solid var(--warn);border-radius:12px;padding:12px 14px}
+.blocked-card{background:#121829;border:1px solid rgba(240,107,98,.35);border-left:4px solid var(--err);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.blocked-card.warn-tone{border-color:rgba(224,168,58,.4);border-left-color:var(--warn)}
+.blocked-header{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#ff7d75}
+.blocked-card.warn-tone .blocked-header{color:#f7ba53}
+.blocked-desc{font-size:13.5px;line-height:1.55;color:#e2e8f0}
+.blocked-items{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.blocked-item{font-size:12.5px;color:#cbd5e1;background:rgba(255,255,255,.03);padding:6px 10px;border-radius:6px;border-left:2px solid var(--err)}
+.blocked-card.warn-tone .blocked-item{border-left-color:var(--warn)}
+.blocked-tip{font-size:12px;color:#93c5fd;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);padding:8px 12px;border-radius:8px;margin-top:4px}
+.blocked-actions{display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap}
 .chat-input-sticky{position:sticky;bottom:14px;margin-top:10px;z-index:10}
 .chat-input-box{background:#111726;border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:8px;transition:border-color .2s ease}
 .chat-input-box:focus-within{border-color:var(--blue)}
@@ -102,20 +123,20 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .status-ico{display:inline-flex;align-items:center;justify-content:center;color:var(--green);vertical-align:middle;margin:0 4px}
 .status-ico.bad{color:var(--err)}
 .status-ico svg{width:16px;height:16px}
-.ag{--c:var(--blue);display:grid;gap:10px;padding:16px 18px;border-radius:18px;border:2px solid color-mix(in srgb,var(--c) 55%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 12%,#0d1528),#0b1222 70%);box-shadow:0 0 24px color-mix(in srgb,var(--c) 16%,transparent);opacity:0;transform:translateY(14px);transition:opacity .7s ease,transform .7s ease;transition-delay:calc(var(--i)*.18s)}
+.ag{--c:var(--blue);display:flex;flex-direction:column;gap:12px;padding:18px 20px;border-radius:18px;border:1.5px solid color-mix(in srgb,var(--c) 45%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 10%,#0d1528),#0b1222 75%);box-shadow:0 4px 20px rgba(0,0,0,.25);opacity:0;transform:translateY(14px);transition:opacity .7s ease,transform .7s ease;transition-delay:calc(var(--i)*.18s);min-height:220px;box-sizing:border-box}
 .in .ag{opacity:1;transform:none}
 .ag.work{--c:var(--green)} .ag.blk{--c:var(--warn)}
 .ah{display:flex;align-items:center;gap:12px}
-.logo{width:50px;height:50px;flex:none;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);display:grid;place-items:center} .logo svg,.logo img{width:30px;height:30px;object-fit:contain}
-.nm{font-size:22px;font-weight:700;flex:1}
+.logo{width:48px;height:48px;flex:none;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);display:grid;place-items:center} .logo svg,.logo img{width:28px;height:28px;object-fit:contain}
+.nm{font-size:20px;font-weight:700}
 .sp{display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:14px;border:1.5px solid var(--c);color:var(--c);font-weight:600;font-size:12px;white-space:nowrap;background:color-mix(in srgb,var(--c) 10%,transparent)}
 .sp i{width:8px;height:8px;border-radius:50%;background:var(--c)} .work .sp i{animation:beat 1.6s infinite}
-.hr{height:1px;background:var(--line)}
-.al{font-size:12px;letter-spacing:.08em;font-weight:600;color:var(--muted);text-transform:uppercase}
-.act{display:flex;gap:12px;align-items:center;min-height:46px} .act>div{min-width:0}
-.ic{width:28px;height:28px;flex:none;color:var(--c,var(--muted))} .ic.spin{animation:spin 1s linear infinite}
-.at{font-size:16px;font-weight:600} .ad{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.ft{display:flex;gap:10px;align-items:center;color:var(--muted);white-space:nowrap;font-size:12px} .ft .ic{width:18px;height:18px;color:var(--muted)}
+.hr{height:1px;background:var(--line);opacity:.7}
+.al{font-size:11px;letter-spacing:.08em;font-weight:700;color:var(--muted);text-transform:uppercase}
+.act{display:flex;gap:12px;align-items:center;min-height:44px} .act>div{min-width:0}
+.ic{width:26px;height:26px;flex:none;color:var(--c,var(--muted))} .ic.spin{animation:spin 1s linear infinite}
+.at{font-size:15px;font-weight:600} .ad{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.ft{display:flex;gap:10px;align-items:center;color:var(--muted);white-space:nowrap;font-size:12px;margin-top:auto} .ft .ic{width:18px;height:18px;color:var(--muted)}
 .pb{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.07);overflow:hidden}
 .pb b{display:block;height:100%;border-radius:4px;background:var(--c)} .pb b.ind{animation:slide 1.8s ease-in-out infinite alternate}
 .approx{color:var(--warn);font-weight:700;cursor:help;margin-right:2px}
@@ -126,9 +147,17 @@ button.sec{background:#243049} button.danger{background:#b62324}
 @keyframes slide{to{margin-left:60%}} @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 /* Técnico */
-.tgrid{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;align-items:start}
+.tgrid{display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start;width:100%}
 #tnav{display:grid;gap:3px;position:sticky;top:60px} .tnav button{display:flex;justify-content:space-between;text-align:left} #tnav button.on{background:var(--raised);color:var(--text)}
 #tnav .grp{color:var(--muted);font-size:12px;margin:10px 6px 2px}
+.tech-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;width:100%}
+.exsel-select{flex:1;max-width:600px;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;outline:none;cursor:pointer}
+.exsel-select:focus{border-color:var(--blue)}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:380px;text-align:center;color:var(--muted);gap:12px;width:100%}
+.empty-state-ico{width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,.04);display:grid;place-items:center;color:var(--muted)}
+.empty-state-ico svg{width:26px;height:26px}
+.empty-state-title{font-size:16px;font-weight:600;color:var(--text)}
+.empty-state-sub{font-size:13px;max-width:400px;line-height:1.5}
 .app-layout{display:flex;min-height:100vh}
 .sidebar{width:240px;background:#0c101d;border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:14px;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
 .sidebar::-webkit-scrollbar{width:5px}
@@ -148,16 +177,16 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .chat-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
 .chat-item.active{background:#1d263b;color:var(--text);font-weight:500}
 .clip1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-@media (max-width:1150px){
-  .top-row{grid-template-columns:1fr;gap:12px}
-  .sel-col{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:12px}
+@media (max-width:1100px){
+  .top-row{grid-template-columns:1fr;gap:14px}
 }
 @media (max-width:850px){
   .app-layout{flex-direction:column}
   .sidebar{width:100%;height:auto;position:relative;border-right:0;border-bottom:1px solid var(--line)}
   .cards{grid-template-columns:1fr}
+  .tgrid{grid-template-columns:1fr}
 }
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:200px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:540px;box-sizing:border-box}
 .subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
 .sc,.box2{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;align-content:start;margin-bottom:8px} .sc.hum{border-color:var(--warn)}
 .sh{display:flex;justify-content:space-between;gap:8px} .flow{font-weight:600} .chips{display:flex;gap:6px;flex-wrap:wrap}
@@ -168,7 +197,6 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
 .lr .clip{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)} .tag{color:var(--blue);font-size:12px}
 .lvl-error summary b,.lvl-error .clip,.lvl-error{color:var(--err)} .lvl-warning .clip,.lvl-warning{color:var(--warn)}
 #toast{position:fixed;bottom:16px;right:16px;background:#243049;padding:8px 14px;border-radius:8px;display:none;z-index:9}
-@media (max-width:800px){.tgrid{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -196,7 +224,7 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
   <div class="main-content">
     <header>
       <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
-      <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
+      <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount" onclick="event.stopPropagation();tsec='errors';dismissErrors();view('tech')" title="Clique para ver os erros e limpar aviso"></span></button></nav>
       <span id="health" class="muted"></span>
     </header>
     <main id="home">
@@ -224,7 +252,6 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
         <div class="top-row">
           <div class="subtasks-col" id="homeSubtasks"></div>
           <div class="cards" id="cards"></div>
-          <div class="sel-col" id="sel"></div>
         </div>
         <div class="chat-thread" id="chatThread">
           <div class="chat-thread-header" id="chatThreadHeader"></div>
@@ -255,6 +282,14 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
       </section>
     </main>
     <main id="tech" hidden>
+      <div class="tech-header">
+        <div class="tech-header-left">
+          <label for="exsel" class="muted" style="font-size:12.5px;font-weight:600">Execução:</label>
+          <select id="exsel" class="exsel-select" onchange="select(this.value)">
+            <option value="">Selecione uma execução…</option>
+          </select>
+        </div>
+      </div>
       <div class="tgrid"><nav id="tnav" class="tnav"></nav><div class="card" id="tbody"></div></div>
     </main>
   </div>
@@ -337,18 +372,31 @@ function afterAct(){ if(SHOWRUN) renderRun(); if(vw==='tech'&&tsec==='agents') r
 
 /* ---------- Início ---------- */
 const ACTION={'planejamento':['Analisando o plano da tarefa','Dividindo o pedido em subtarefas…','plan'],'implementação':['Implementando mudanças','Alterando arquivos do projeto…','code'],'revisão cruzada':['Revisando o trabalho','Conferindo critérios e casos de borda…','review'],'revisão final':['Revisão final','Verificando a integração entre as subtarefas…','final']};
+function cleanModelName(model){
+  if(!model) return '—';
+  return String(model).replace(/^opencode\//, '').replace(/^google\//, '');
+}
 function agCard(a,i){
   const cur=ACT.find(x=>String(x.agent).toLowerCase()===a.name.toLowerCase()), blk=!a.accepting_work&&!cur;
   const [ti,de,ic]=cur?(ACTION[cur.skill]||[cur.skill||'Trabalhando','','code']):['Sem ação no momento','Aguardando a próxima etapa.','idle'];
   const pr=cur&&typeof cur.progress==='number'?Math.round(cur.progress*100):null;
-  const spec=a.model_spec||{};
-  const caps=(spec.capabilities||a.required_capabilities||[]);
-  const tier=spec.cost_tier==='high'?'<span class="pill s-warn">Alto Desempenho</span>':(spec.cost_tier==='low'?'<span class="pill s-ok">Custo Baixo</span>':'<span class="pill s-run">Custo Padrão</span>');
-  return `<div class="ag ${cur?'work':blk?'blk':''}" style="--i:${i}"><div class="ah"><div class="logo">${logo(a)}</div><div style="flex:1"><div class="nm">${esc(short(a.display_name))}</div><div class="muted mono" style="font-size:11px">${esc(a.model||'')} · ${esc(a.provider||'')}</div></div><span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span></div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin:4px 0">${tier}${caps.map(c=>`<span class="pill" style="font-size:10px">${esc(c)}</span>`).join('')}</div>
-    <div class="hr"></div><div class="al">Ação atual</div>
+  const modelName = cleanModelName(a.model);
+
+  return `<div class="ag ${cur?'work':blk?'blk':''}" style="--i:${i}">
+    <div class="ah">
+      <div class="logo">${logo(a)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="nm">${esc(short(a.display_name))}</div>
+        <div class="muted mono clip1" style="font-size:12px;margin-top:2px" title="${esc(a.model||'')}">${esc(modelName)}</div>
+      </div>
+      <span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span>
+    </div>
+    <div class="hr"></div>
+    <div class="al">Ação atual</div>
     <div class="act">${svg(ic)}<div><div class="at">${esc(ti)}</div><div class="ad">${esc(cur&&cur.detail?cur.detail:de)}</div></div></div>
-    <div class="ft">${svg('clock')}<span>${cur?liveAgo(cur.started_at,cur.source):'—'}</span><div class="pb" title="${pr===null?'Sem progresso mensurável nesta etapa':'Subtarefas aprovadas da execução'}"><b class="${cur&&pr===null?'ind':''}" style="width:${cur?(pr===null?40:pr):0}%"></b></div></div></div>`; }
+    <div class="ft">${svg('clock')}<span>${cur?liveAgo(cur.started_at,cur.source):'—'}</span><div class="pb" title="${pr===null?'Sem progresso mensurável nesta etapa':'Subtarefas aprovadas da execução'}"><b class="${cur&&pr===null?'ind':''}" style="width:${cur?(pr===null?40:pr):0}%"></b></div></div>
+  </div>`;
+}
 function seleneState(){
   const cs=((D&&D.subtasks)||[]).map(s=>s.checks&&s.checks.status).filter(Boolean);
   if(ACT.some(x=>x.agent==='checagens')) return ['run','Rodando…','spin'];
@@ -393,23 +441,36 @@ function renderAssistantResponse(d){
   }
 
   if (st === 'blocked') {
-    return `<div class="exec-bubble-box alert-box" style="border-color:var(--warn)">
-      <div class="exec-bubble-title" style="color:var(--warn)">⛔ Execução Bloqueada</div>
-      <p style="margin:6px 0;font-size:13.5px;color:#c8d3e2">${esc(d.error || 'A execução foi interrompida devido a falha ou dependência não atendida.')}</p>
-      <div class="row" style="margin-top:10px">
-        <button class="btn-cancel" onclick="act('resume')">Retomar Execução</button>
-        <button class="sec" onclick="tsec='errors';view('tech')">Ver detalhes do erro</button>
+    const isPermission = /permiss[ãa]o negada|n[ãa]o permitida em modo n[ãa]o interativo/i.test(d.error || '');
+    const errText = d.error || 'A execução foi interrompida devido a falha ou dependência não atendida.';
+    const stMatches = errText.split(/(?<=\.)\s+(?=[A-Z0-9À-Ú][^—\n]+ (?:failed|blocked) —)/);
+    const hasMultiple = stMatches.length > 1;
+
+    return `<div class="blocked-card warn-tone">
+      <div class="blocked-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>
+        <span>Execução Bloqueada</span>
+      </div>
+      <div class="blocked-desc">${hasMultiple ? 'Uma ou mais subtarefas falharam ou tiveram dependências bloqueadas:' : esc(errText)}</div>
+      ${hasMultiple ? `<div class="blocked-items">${stMatches.map(m => `<div class="blocked-item">${esc(m.trim())}</div>`).join('')}</div>` : ''}
+      ${isPermission ? `<div class="blocked-tip">💡 <b>Dica:</b> Ações foram negadas em modo não interativo pelo agy. Ative a chave <b>Auto-aprovar</b> no canto inferior para permitir execuções de comandos sem bloqueios.</div>` : ''}
+      <div class="blocked-actions">
+        <button class="btn-resume" onclick="act('resume')">Retomar Execução</button>
+        <button class="btn-err-details" onclick="tsec='errors';view('tech')">Ver detalhes do erro</button>
       </div>
     </div>`;
   }
 
   if (st === 'failed') {
-    return `<div class="exec-bubble-box alert-box" style="border-color:var(--err)">
-      <div class="exec-bubble-title" style="color:var(--err)">❌ Execução Falhou</div>
-      <p style="margin:6px 0;font-size:13.5px;color:#c8d3e2">${esc(d.error || 'Ocorreu um erro durante a orquestração dos agentes.')}</p>
-      <div class="row" style="margin-top:10px">
-        <button class="btn-cancel" onclick="act('resume')">Tentar Retomar</button>
-        <button class="sec" onclick="tsec='errors';view('tech')">Ver Log de Erros</button>
+    return `<div class="blocked-card">
+      <div class="blocked-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>Execução Falhou</span>
+      </div>
+      <div class="blocked-desc">${esc(d.error || 'Ocorreu um erro durante a orquestração dos agentes.')}</div>
+      <div class="blocked-actions">
+        <button class="btn-resume" onclick="act('resume')">Tentar Retomar</button>
+        <button class="btn-err-details" onclick="tsec='errors';view('tech')">Ver Log de Erros</button>
       </div>
     </div>`;
   }
@@ -430,7 +491,7 @@ function renderAssistantResponse(d){
       <span class="status-dot dot-running"></span>
       <span>Orquestrando Agentes no Workspace…</span>
     </div>
-    <p style="margin:6px 0;font-size:13.5px;color:#c8d3e2">Os agentes Gemini e DeepSeek estão analisando e implementando as modificações. Você pode acompanhar as ações atuais e arquivos reservados nos cards acima.</p>
+    <p style="margin:6px 0;font-size:13.5px;color:#c8d3e2">Os agentes Gemini e DeepSeek estão analisando e implementando as modificações. Você pode acompanhar as ações atuais e subtarefas nos cards acima.</p>
   </div>`;
 }
 
@@ -442,23 +503,26 @@ function renderRun(force){
   const statusIco = d.status==='completed'?'ok':d.status==='failed'?'bad':ACTIVE.includes(d.status)?'run':'ok';
   const statusIcoColor = d.status==='completed'?'green':d.status==='failed'?'err':ACTIVE.includes(d.status)?'blue':'warn';
 
-  // Subtarefas à esquerda do Gemini
+  // Subtarefas à esquerda dos agentes (formato limpo com numeração circular)
   const subs = d.subtasks || [];
   const subsApproved = subs.filter(s => s.status === 'approved' || s.status === 'completed').length;
   const subsCountText = subs.length ? `${subsApproved}/${subs.length}` : '';
-  const subsListHtml = subs.length > 0 ? subs.map(s => {
+  const subsListHtml = subs.length > 0 ? subs.map((s, idx) => {
     const st = s.status || 'pending';
+    const numCls = ['completed','approved','passed','ok'].includes(st) ? 'ok' :
+                   ['running','planning','delegating','checking','reviewing'].includes(st) ? 'run' :
+                   ['failed','rejected','err'].includes(st) ? 'err' :
+                   ['blocked','needs_human','paused','warn'].includes(st) ? 'warn' : 'pending';
     return `<div class="subtask-row" onclick="tsec='subtasks';view('tech')" title="${esc(s.plan_id || s.id)}: ${esc(s.title)} (${esc(st)})">
-      <span class="status-dot dot-${esc(st)}"></span>
-      <span class="subtask-title clip1">${esc(s.plan_id || s.id)} · ${esc(s.title)}</span>
-      <span class="subtask-tag s-${esc(st)}">${esc(st)}</span>
+      <span class="subtask-num num-${numCls}">${idx + 1}</span>
+      <span class="subtask-title clip1"><b>${esc(s.plan_id || s.id)}</b> · ${esc(s.title)}</span>
     </div>`;
   }).join('') : `<div class="subtasks-empty"><span class="status-dot dot-running"></span><span>Planejando subtarefas…</span></div>`;
 
   setHTML($('#homeSubtasks'), `
     <div class="subtasks-header">
       <div class="subtasks-title-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--blue)"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
         <span>Subtarefas</span>
       </div>
       <span class="subtasks-count">${subsCountText}</span>
@@ -469,28 +533,25 @@ function renderRun(force){
   setHTML($('#cards'), AG.map(agCard).join(''), force);
 
   const [k,txt,sp]=seleneState(), now=Date.now(), conf=LKH.filter(x=>CONF.test(x.action||'')&&now-new Date(x.created_at)<9e5);
-  const color = k==='ok'?'green':k==='bad'?'err':k==='warn'?'warn':k==='run'?'blue':'muted';
-  setHTML($('#sel'), `
-    <div class="sel-header">
-      <span class="sel-ico" style="color:var(--${color})">${svg(k==='idle'?'idle':k,sp)}</span>
-      <span class="sel-title">Selene</span>
-    </div>
-    <div class="sel-status muted">${txt}</div>
-    ${conf.length?`<div class="lk bad" style="margin-top:4px"><b>Conflito:</b> ${conf.slice(0,2).map(x=>esc(x.resource)).join(', ')} <a onclick="tsec='locks';view('tech')">ver</a></div>`:''}
-    ${LK.length?`<div class="lk" style="margin-top:4px">${LK.length} arquivo(s) reservado(s) <a onclick="tsec='locks';view('tech')">ver</a></div>`:''}
-  `, force);
+  const selColor = k === 'ok' ? 'ok' : k === 'bad' ? 'err' : k === 'warn' ? 'warn' : k === 'run' ? 'run' : 'muted';
 
-  // Cabeçalho da conversa / Status
+  // Cabeçalho da conversa / Status (com Selene integrado)
   setHTML($('#chatThreadHeader'), `
     <div class="chat-status-meta">
       <span class="tl-status-ico" style="color:var(--${statusIcoColor})">${svg(statusIco)}</span>
       <span class="tl-title">Status da Solicitação</span>
       ${pill(d.status)}
       ${finalReviewBadge(d)}
+      <div class="selene-chip chip-${selColor}" title="Selene: Linter e validação de código Luau">
+        <span class="selene-ico">${svg(k==='idle'?'idle':k,sp)}</span>
+        <span>Selene: <b>${esc(txt)}</b></span>
+      </div>
+      ${LK.length ? `<span class="pill" style="cursor:pointer" onclick="tsec='locks';view('tech')" title="Arquivos reservados">${LK.length} arquivo(s) reservado(s)</span>` : ''}
+      ${conf.length ? `<span class="pill s-warn" style="cursor:pointer" onclick="tsec='locks';view('tech')" title="Conflitos detectados">⚠️ ${conf.length} conflito(s)</span>` : ''}
     </div>
     <div class="tl-actions">
       ${can?'<button class="btn-cancel" onclick="act(\'cancel\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M18 6L6 18M6 6l12 12"/></svg>Cancelar</button>':''}
-      ${res?'<button class="btn-cancel" onclick="act(\'resume\')">Retomar</button>':''}
+      ${res?'<button class="btn-resume" onclick="act(\'resume\')">Retomar</button>':''}
       <button class="btn-primary" onclick="novo()">Nova solicitação</button>
     </div>
   `, force);
@@ -596,10 +657,34 @@ function setMode(b){ mode=b.dataset.m; document.querySelectorAll('.seg button').
 async function createTask(){ const goal = $('#goal').value.trim(); if(goal.length<8) return toast('Descreva melhor a solicitação.');
   try{ const r = await api('/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({goal, mode})});
   selected=r.id; hold=false; D={id:r.id, goal, status:'queued', subtasks:[], events:[]}; $('#goal').value=''; $('#goal').style.height=''; renderHome(true); refresh(); }catch(e){ toast(e.message); } }
+let seenErrors = parseInt(localStorage.getItem('sinestro_seen_errors') || '0', 10);
+function updateErrorBadge(){
+  const el = $('#ecount');
+  if(!el) return;
+  const unread = Math.max(0, (ERR || []).length - seenErrors);
+  el.textContent = unread > 0 ? unread : '';
+  el.style.display = unread > 0 ? 'inline-block' : 'none';
+}
+function dismissErrors(){
+  seenErrors = (ERR || []).length;
+  localStorage.setItem('sinestro_seen_errors', String(seenErrors));
+  updateErrorBadge();
+}
 function novo(){ selected=null; D=null; hold=true; renderHome(true); renderSidebar(); }
 $('#goal').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){ e.preventDefault(); createTask(); } });
 $('#goal').addEventListener('input', e => { e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px'; });
-function view(v){ vw=v; $('#home').hidden=v!=='home'; $('#tech').hidden=v!=='tech'; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); if(v==='tech') loadTech(true); else renderHome(true); }
+function view(v){
+  vw=v;
+  $('#home').hidden=v!=='home';
+  $('#tech').hidden=v!=='tech';
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  if(v==='tech'){
+    if(tsec==='errors') dismissErrors();
+    loadTech(true);
+  } else {
+    renderHome(true);
+  }
+}
 
 /* ---------- Dados ---------- */
 async function loadHealth(){ try{ const h = await api('/health'); $('#mockBanner').style.display = h.mock_mode?'block':'none'; $('#ver').textContent = 'v'+h.version;
@@ -658,10 +743,15 @@ async function loadGlobal(force){
   const g = p => api(p).catch(() => null);
   const [e,d,l,h] = await Promise.all([g('/errors?limit=50'), g('/decisions?limit=50'), g('/locks'), g('/locks/history?limit=30')]);
   if(e) ERR=(e.events||[]).sort((a,b)=>b.id-a.id); if(d) DEC=d; if(l) LK=l; if(h) LKH=h;
-  $('#ecount').textContent=ERR.length||''; if(SHOWRUN) renderRun(force); if(vw==='tech') renderTech(force);
+  updateErrorBadge(); if(SHOWRUN) renderRun(force); if(vw==='tech') renderTech(force);
 }
 
 /* ---------- Técnico ---------- */
+const emptyState = (title, sub) => `<div class="empty-state">
+  <div class="empty-state-ico">${svg('plan')}</div>
+  <div class="empty-state-title">${esc(title)}</div>
+  <div class="empty-state-sub">${esc(sub || '')}</div>
+</div>`;
 function finalReviewPanel(d){
   const fr = d.final_review; if (!fr || !d.final_review_state || d.final_review_state==='not_reached') return '';
   const own = (fr.self_authored_subtasks||[]);
@@ -674,13 +764,31 @@ function finalReviewPanel(d){
     ${fr.detail?`<pre>${esc(fr.detail)}</pre>`:''}
     ${fr.escalation?`<details><summary class="muted">parecer</summary><pre>${esc(JSON.stringify(fr.escalation,null,2))}</pre></details>`:''}
     ${needs?`<div class="row"><button class="sec" onclick="finalDecide('accept')">aceitar mesmo assim</button><button class="danger" onclick="finalDecide('reject')">rejeitar</button><span class="muted">ou Retomar para nova revisão final</span></div>`:''}</div>`; }
-const subCard = s => { const hum=s.status==='needs_human', txt=s.error||(s.review&&s.review.summary)||(s.result&&s.result.summary)||'', ck=s.checks&&s.checks.status;
-  return `<div class="sc ${hum?'hum':''}"><div class="sh"><b>${esc(s.plan_id)} · ${esc(s.title)}</b>${pill(s.status)}</div>
-    <div class="flow">${esc(dn(s.assigned_to||s.agent))} → ${esc(s.reviewer?dn(s.reviewer):'sem revisor')}</div><div class="muted">${esc(s.assignment_reason||'')}</div>
-    <div class="chips">${s.execution_group?`<span class="chip">grupo ${esc(s.execution_group)}</span>`:''}${s.dependency_class?`<span class="pill s-${s.dependency_class==='PARALLEL'?'run':s.dependency_class==='SHARED'?'warn':'blocked'}">${esc(s.dependency_class)}</span>`:''}<span class="chip">revisões ${s.review_cycles}/2</span><span class="chip">correções ${s.check_fix_attempts??0}</span><span class="chip">tentativas ${s.impl_attempts??0}</span>${ck?pill(ck):'<span class="chip">sem checagem</span>'}</div>
-    <div class="muted mono">${esc((s.files||[]).join(', '))}</div>${txt?`<pre style="max-height:90px">${esc(txt)}</pre>`:''}
-    ${s.escalation?`<details><summary class="muted">resumo dos dois lados</summary><pre>${esc(JSON.stringify(s.escalation,null,2))}</pre></details>`:''}
-    ${hum?`<div class="row">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${esc(s.id)}','${a}')">${a}</button>`).join('')}</div>`:''}</div>`; };
+const subCard = s => {
+  const hum=s.status==='needs_human', txt=s.error||(s.review&&s.review.summary)||(s.result&&s.result.summary)||'', ck=s.checks&&s.checks.status;
+  return `<div class="sc ${hum?'hum':''}">
+    <div class="sh"><b>${esc(s.plan_id)} · ${esc(s.title)}</b>${pill(s.status)}</div>
+    <div class="flow" style="margin-top:2px">${esc(dn(s.assigned_to||s.agent))} → ${esc(s.reviewer?dn(s.reviewer):'sem revisor')}</div>
+    ${s.assignment_reason ? `<div class="muted" style="font-size:12px">${esc(s.assignment_reason)}</div>` : ''}
+    <div class="chips" style="margin:4px 0">
+      ${s.dependency_class ? `<span class="pill s-${s.dependency_class==='PARALLEL'?'run':s.dependency_class==='SHARED'?'warn':'blocked'}">${esc(s.dependency_class)}</span>` : ''}
+      ${ck ? pill(ck) : ''}
+    </div>
+    ${s.files && s.files.length ? `<div class="muted mono" style="font-size:11.5px;margin-bottom:4px">${esc(s.files.join(', '))}</div>` : ''}
+    ${txt ? `<pre style="max-height:80px">${esc(txt)}</pre>` : ''}
+    <details style="margin-top:4px">
+      <summary class="muted" style="cursor:pointer;font-size:11.5px">Métricas e ciclos da subtarefa</summary>
+      <div class="chips" style="margin-top:6px">
+        ${s.execution_group ? `<span class="chip">grupo ${esc(s.execution_group)}</span>` : ''}
+        <span class="chip">revisões ${s.review_cycles}/2</span>
+        <span class="chip">correções ${s.check_fix_attempts??0}</span>
+        <span class="chip">tentativas ${s.impl_attempts??0}</span>
+      </div>
+      ${s.escalation ? `<pre style="margin-top:6px">${esc(JSON.stringify(s.escalation,null,2))}</pre>` : ''}
+    </details>
+    ${hum ? `<div class="row" style="margin-top:8px">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${esc(s.id)}','${a}')">${a}</button>`).join('')}</div>` : ''}
+  </div>`;
+};
 const row = (tm,who,tag,body,cls) => `<details class="lr ${cls||''}"><summary><span class="muted">${t(tm)}</span><b>${esc(who)}</b><span class="tag">${esc(tag)}</span><span class="clip">${esc(String(body||'').slice(0,140))}</span></summary><pre>${esc(body)}</pre></details>`;
 function renderExSel(){ const el=$('#exsel'); if(!el || document.activeElement===el) return;
   const h=(selected?'':'<option value="">Selecione uma execução…</option>')+WF.map(w=>`<option value="${esc(w.id)}" ${w.id===selected?'selected':''}>${esc(t(w.created_at))} · ${esc(w.goal.slice(0,70))} · ${esc(w.status)}</option>`).join('');
@@ -705,17 +813,17 @@ async function doRagIndex(){
 }
 function renderTech(force){
   if(vw!=='tech') return;
-  const d=D, cnt={errors:ERR.length, decisions:DEC.length, locks:LK.length};
-  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';loadTech(true)">${TS[k]||k}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
+  const d=D, cnt={errors:Math.max(0,ERR.length-seenErrors), decisions:DEC.length, locks:LK.length};
+  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';if(k==='errors')dismissErrors();loadTech(true)">${TS[k]||k}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
   setHTML($('#tnav'), '<div class="grp">Execução selecionada</div>'+['subtasks','dag','plan','messages','files'].map(nb).join('')+'<div class="grp">Multi-Provider & RAG</div>'+['providers','costs','rag'].map(nb).join('')+'<div class="grp">Geral</div>'+['events','errors','decisions','locks','runs','allmsg','agents','mcp'].map(nb).join(''), true);
   renderExSel();
-  const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none='<span class="muted">Nada para exibir.</span>';
+  const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none=emptyState('Nada para exibir', 'Nenhum registro encontrado nesta categoria.');
   let h='';
-  if(['subtasks','plan','dag'].includes(tsec)&&!d) h='<span class="muted">Selecione uma execução.</span>';
-  else if(tsec==='subtasks') h = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:8px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') + `<div class="subs">${(d.subtasks||[]).map(subCard).join('')||'<span class="muted">Sem subtarefas ainda.</span>'}</div>`;
+  if(['subtasks','plan','dag'].includes(tsec)&&!d) h=emptyState('Selecione uma execução', 'Escolha uma tarefa na barra lateral ou no seletor acima para inspecionar os detalhes técnicos.');
+  else if(tsec==='subtasks') h = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:8px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') + `<div class="subs">${(d.subtasks||[]).map(subCard).join('')||emptyState('Sem subtarefas', 'Nenhuma subtarefa registrada para esta execução.')}</div>`;
   else if(tsec==='dag'){
     const stages=(d&&d.stages)||[];
-    h=stages.length?stages.map(st=>`<div class="box2"><div class="sh"><b>${esc(st.stage)}</b> ${pill(st.status)}</div><div class="muted">início: ${t(st.started_at)} · fim: ${t(st.ended_at)||'em andamento'}</div>${st.error?`<div class="lvl-error">${esc(st.error)}</div>`:''}</div>`).join(''):'<span class="muted">Nenhuma etapa registrada para esta execução.</span>';
+    h=stages.length?stages.map(st=>`<div class="box2"><div class="sh"><b>${esc(st.stage)}</b> ${pill(st.status)}</div><div class="muted">início: ${t(st.started_at)} · fim: ${t(st.ended_at)||'em andamento'}</div>${st.error?`<div class="lvl-error">${esc(st.error)}</div>`:''}</div>`).join(''):emptyState('Nenhuma etapa registrada', 'A DAG de etapas ainda não foi estruturada.');
   }
   else if(tsec==='providers'){
     const provs=X.prov||[];
@@ -732,21 +840,22 @@ function renderTech(force){
       <div class="row" style="margin-top:8px"><span class="chip">Execuções: ${c.total_runs||0}</span><span class="chip">Tokens Entrada: ${(c.total_tokens_in||0).toLocaleString()}</span><span class="chip">Tokens Saída: ${(c.total_tokens_out||0).toLocaleString()}</span><span class="pill s-ok">Custo Estimado: $${esc(c.total_estimated_usd||0)}</span></div></div>
       <div style="margin-top:10px">${ags.length?ags.map(([name,st])=>`<div class="box2"><div><b>${esc(dn(name))}</b> <span class="muted mono">(${esc(name)})</span></div>
         <div class="chips" style="margin:4px 0"><span class="chip">Chamadas: ${st.runs} (${st.successful} ok, ${st.failed} erro)</span><span class="chip">Entrada: ${st.input_tokens.toLocaleString()}</span><span class="chip">Saída: ${st.output_tokens.toLocaleString()}</span><span class="pill s-ok">Custo Estimado: $${st.estimated_cost_usd}</span></div>
-        <div class="muted mono" style="font-size:11px">Modelos: ${(st.models_used||[]).join(', ')}</div></div>`).join(''):'<span class="muted">Nenhum custo registrado ainda.</span>'}</div>`;
+        <div class="muted mono" style="font-size:11px">Modelos: ${(st.models_used||[]).join(', ')}</div></div>`).join(''):emptyState('Nenhum custo registrado', 'Nenhum consumo de tokens computado até o momento.')}</div>`;
   }
   else if(tsec==='rag'){
     h=`<div class="box2"><b>Busca Semântica & Contexto (RAG)</b><div class="muted">Consulta a base vetorial de arquivos do workspace e decisões técnicas.</div>
       <div class="row" style="margin-top:8px"><input id="ragQuery" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px" placeholder="Digite uma consulta (ex.: persistência de dados, inventory, workflow)…" onkeydown="if(event.key==='Enter')doRagSearch()"/>
       <button class="sec" onclick="doRagSearch()">Buscar</button><button class="sec" onclick="doRagIndex()">Reindexar Workspace</button></div></div>
       <div id="ragResults" style="margin-top:10px">${(X.ragResults||[]).length?X.ragResults.map(r=>`<div class="sc"><div class="sh"><b class="mono">${esc(r.metadata?.path||r.doc_id)}</b><span class="pill s-ok">score ${r.score}</span></div>
-        <div class="muted">${esc(r.metadata?.type||'doc')} · ${esc(r.chunk_id)}</div><pre style="max-height:120px">${esc(r.content)}</pre></div>`).join(''):'<span class="muted">Execute uma busca acima para consultar a base semântica.</span>'}</div>`;
+        <div class="muted">${esc(r.metadata?.type||'doc')} · ${esc(r.chunk_id)}</div><pre style="max-height:120px">${esc(r.content)}</pre></div>`).join(''):emptyState('Busca Semântica', 'Digite uma consulta acima para consultar a base vetorial do projeto.')}</div>`;
   }
   else if(tsec==='plan') h=`<pre style="max-height:600px">${esc(JSON.stringify({dependency_analysis:d.dependency_analysis, stages:d.stages, metrics:d.metrics, plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
   else if(tsec==='messages') h=(X.m||[]).map(x=>row(x.created_at,`${x.sender} → ${x.recipient}`,`${x.skill||''} ${x.a2a_state||''}`,x.summary)).join('')||none;
-  else if(tsec==='files') h=(X.f||[]).map(c=>`<div class="lr"><b class="mono">${esc(c.path)}</b> <span class="muted">${esc(c.change_type)} · ${esc(c.agent)} · ${esc(c.source)}</span> ${c.within_reservation?pill('ok'):'<span class="pill s-err">fora da reserva</span>'}</div>`).join('')||'<span class="muted">Nenhuma alteração registrada.</span>';
+  else if(tsec==='files') h=(X.f||[]).map(c=>`<div class="lr"><b class="mono">${esc(c.path)}</b> <span class="muted">${esc(c.change_type)} · ${esc(c.agent)} · ${esc(c.source)}</span> ${c.within_reservation?pill('ok'):'<span class="pill s-err">fora da reserva</span>'}</div>`).join('')||none;
   else if(tsec==='events'||tsec==='errors'){
+    if(tsec==='errors') dismissErrors();
     const src=tsec==='events'?(d?d.events||[]:[]):ERR, fl=[['todos','Todos'],['error','Erros'],['warning','Avisos'],...AG.map(a=>[a.name,short(a.display_name)])];
-    h=`<div class="chips" style="margin-bottom:8px">${fl.map(([k,v])=>`<button class="chip ${k===flt?'on':''}" onclick="flt='${esc(k)}';renderTech(true)">${esc(v)}</button>`).join('')}</div>`+(src.filter(pass).sort(byTime).slice(0,120).map(e=>row(e.created_at,e.agent,e.event,e.content,'lvl-'+esc(e.level))).join('')||none); }
+    h=`<div class="chips" style="margin-bottom:8px">${fl.map(([k,v])=>`<button class="chip ${k===flt?'on':''}" onclick="flt='${esc(k)}';renderTech(true)">${esc(v)}</button>`).join('')}${tsec==='errors'?`<button class="chip" onclick="dismissErrors();renderTech(true)">Marcar como lidos</button>`:''}</div>`+(src.filter(pass).sort(byTime).slice(0,120).map(e=>row(e.created_at,e.agent,e.event,e.content,'lvl-'+esc(e.level))).join('')||none); }
   else if(tsec==='decisions') h=DEC.map(x=>row(x.created_at,x.author,`#${x.id} ${x.status}`,`${x.title}: ${x.decision}`)).join('')||none;
   else if(tsec==='locks') h='<div class="muted">Ativas</div>'+(LK.map(x=>`<div class="lr"><b class="mono">${esc(x.resource)}</b> <span class="muted">dono ${esc(x.owner)} · subtarefa ${esc(x.subtask_id)} · expira ${t(x.expires_at)}</span></div>`).join('')||'<div class="muted">nenhuma</div>')+'<div class="muted" style="margin-top:10px">Histórico</div>'+LKH.map(x=>row(x.created_at,x.owner,x.action,x.resource,CONF.test(x.action||'')?'lvl-error':'')).join('');
   else if(tsec==='runs') h=(X.r||[]).map(x=>row(x.created_at,x.agent,`${x.skill||''} · ${x.status} · ${x.duration_seconds??'?'}s`,x.error||(x.usage?JSON.stringify(x.usage):''),x.error?'lvl-error':'')).join('')||none;
