@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from communication.a2a_server import agent_base_path, card_to_dict
 from orchestrator.assignment import other
 from orchestrator.schemas import AssignmentDecision
-from orchestrator.task_manager import ST, WF
+from orchestrator.task_manager import FR, ST, WF, final_status
 
 router = APIRouter()
 
@@ -28,6 +28,11 @@ class DecisionRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
     status: Literal["proposed", "accepted"] = "accepted"
     supersedes: int | None = None
+
+
+class FinalReviewDecision(BaseModel):
+    action: Literal["accept", "reject"]
+    note: str = Field(default="", max_length=4000)
 
 
 class HumanDecision(BaseModel):
@@ -138,6 +143,34 @@ def human_decision(task_id: str, subtask_id: str, body: HumanDecision, request: 
                               assignment_json=d.model_dump(), a2a_context_id=None, **reset)
     c.tasks.event(task_id, "user", f"human_decision_{body.action}", {"subtask": subtask_id, "note": body.note}, subtask_id=subtask_id)
     return {"subtask": subtask_id, "action": body.action, "next": f"POST /tasks/{task_id}/resume"}
+
+
+@router.post("/tasks/{task_id}/final-review/decision", tags=["Tarefas"])
+def final_review_decision(task_id: str, body: FinalReviewDecision, request: Request) -> dict:
+    """Decisão humana sobre parecer NEGATIVO/não verificável da revisão final (sem ciclo automático de correção).
+    accept -> accepted_by_human (completed); reject -> rejected_by_human (failed).
+    Para pedir uma NOVA revisão final (ex.: depois de corrigir à mão), use POST /tasks/{id}/resume."""
+    c = C(request)
+    wf = c.repo.get_workflow(task_id)
+    if not wf:
+        raise HTTPException(404, "Tarefa não encontrada.")
+    if c.coordinator.is_running(task_id):
+        raise HTTPException(409, "Workflow em execução.")
+    if wf["status"] != WF.NEEDS_HUMAN or wf.get("final_review_state") not in FR.NEEDS_HUMAN:
+        raise HTTPException(409, f"Não há parecer de revisão final aguardando decisão (status {wf['status']}, "
+                                 f"final_review_state {wf.get('final_review_state')}).")
+    state = FR.ACCEPTED_BY_HUMAN if body.action == "accept" else FR.REJECTED_BY_HUMAN
+    fr = dict(wf.get("final_review") or {})
+    fr["human_decision"] = {"action": body.action, "note": body.note, "previous_state": wf.get("final_review_state")}
+    fr["state"] = state
+    subs = c.tasks.subtasks(task_id)
+    status = final_status(subs, False, False, state)
+    c.repo.update_workflow(task_id, final_review_state=state, final_review_json=fr,
+                           error=None if status == WF.COMPLETED else f"Revisão final rejeitada por decisão humana: {body.note}")
+    c.tasks.set_status(task_id, status, phase="concluded")
+    c.tasks.event(task_id, "user", f"final_review_{state}", {"note": body.note, "previous_state": fr["human_decision"]["previous_state"]},
+                  "warning")
+    return {"id": task_id, "final_review_state": state, "status": status}
 
 
 @router.get("/tasks/{task_id}/messages", tags=["Comunicação A2A"])

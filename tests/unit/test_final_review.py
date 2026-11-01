@@ -198,3 +198,109 @@ def test_final_review_records_snapshot_and_attempt(harness, workspace):
             fr = d["final_review"]
             assert fr["attempt"] == 1 and len(fr["snapshot_hash"]) == 16 and fr["watched_files"] == [EXAMPLE]
     run(go())
+
+
+# ---------------------------------------------------------------- retomada só da revisão final
+SUB_FIELDS = ("assigned_to", "reviewer", "agent", "assignment_reason", "assignment", "review_cycles", "check_fix_attempts",
+              "impl_attempts", "status", "result", "review", "a2a_context_id", "last_a2a_task_id")
+
+
+def _unreviewed_setup(workspace):
+    """DeepSeek implementa com 1 ciclo de ajuste; Gemini aprova a subtarefa e fica sem cota antes da revisão final."""
+    b = build_mock_backends()
+    base = symmetric_responder("gemini", ["changes_requested", "approved"], files=[])
+
+    def gemini(skill, prompt, calls):
+        out = base(skill, prompt, calls)
+        if skill == "review_implementation" and calls["count"] == 2:
+            b["gemini"].quota_reason = "sem cota (simulada)"
+        return out
+
+    b["gemini"].responder = gemini
+    b["deepseek"].responder = impl_writer("deepseek", workspace)
+    return b
+
+
+def _skill_counts(b):
+    return {(n, c["skill"]) for n in b for c in b[n].calls}, {n: len(b[n].calls) for n in b}
+
+
+def test_resume_completed_unreviewed_runs_only_final_review(harness, workspace):
+    async def go():
+        b = _unreviewed_setup(workspace)
+        async with harness(b) as h:
+            d = await start(h)
+            assert d["status"] == WF.COMPLETED_UNREVIEWED
+            before_sub = {k: d["subtasks"][0][k] for k in SUB_FIELDS}
+            assert before_sub["review_cycles"] == 1
+            calls_before = {n: [c["skill"] for c in b[n].calls] for n in b}
+            n_events = len(d["events"])
+            b["gemini"].quota_reason = None
+            assert (await h.client.post(f"/tasks/{d['id']}/resume")).status_code == 202
+            d2 = await h.wait_done(d["id"])
+            assert d2["status"] == WF.COMPLETED and d2["final_review_state"] == FR.PASSED
+            # só a revisão final foi chamada
+            assert {n: [c["skill"] for c in b[n].calls] for n in b} == {
+                "gemini": calls_before["gemini"] + ["final_review"], "deepseek": calls_before["deepseek"]}
+            # atribuições e contadores intactos
+            assert {k: d2["subtasks"][0][k] for k in SUB_FIELDS} == before_sub
+            new_events = [e["event"] for e in d2["events"][n_events:]]
+            assert "resume_final_review_only" in new_events
+            assert "resume" not in new_events and not any(e["content"] == "delegating" for e in d2["events"][n_events:])
+            assert d2["final_review"]["attempt"] == 2
+            assert "final_review_workspace_changed" not in new_events  # nada mudou entre as tentativas
+    run(go())
+
+
+def test_resume_final_review_after_workspace_changed_runs_on_current_state(harness, workspace):
+    async def go():
+        b = _unreviewed_setup(workspace)
+        async with harness(b) as h:
+            d = await start(h)
+            snap1 = d["final_review"]["snapshot_hash"]
+            (workspace / EXAMPLE).write_text("return { version = 99 } -- editado à mão\n", encoding="utf-8")
+            b["gemini"].quota_reason = None
+            await h.client.post(f"/tasks/{d['id']}/resume")
+            d2 = await h.wait_done(d["id"])
+            fr = d2["final_review"]
+            assert fr["snapshot_hash"] != snap1 and fr["workspace_changed_since_last_attempt"] is True
+            assert any(e["event"] == "final_review_workspace_changed" for e in d2["events"])
+            assert d2["status"] == WF.COMPLETED
+    run(go())
+
+
+def test_final_needs_human_accept_and_reject_decisions(harness, workspace):
+    async def go():
+        b = build_mock_backends()
+        b["gemini"].responder = impl_writer("gemini", workspace, final=[review_json("changes_requested", DEFAULT_FINDING)])
+        b["deepseek"].responder = impl_writer("deepseek", workspace)
+        async with harness(b) as h:
+            d = await start(h)
+            assert d["status"] == WF.NEEDS_HUMAN
+            r = await h.client.post(f"/tasks/{d['id']}/final-review/decision", json={"action": "accept", "note": "ok assim"})
+            assert r.status_code == 200 and r.json()["status"] == WF.COMPLETED
+            d2 = (await h.client.get(f"/tasks/{d['id']}")).json()
+            assert d2["final_review_state"] == FR.ACCEPTED_BY_HUMAN and d2["final_review"]["human_decision"]["previous_state"] == FR.CHANGES_REQUESTED
+            # segunda execução: rejeição confirmada
+            d3 = await start(h, "Outra funcionalidade")
+            r = await h.client.post(f"/tasks/{d3['id']}/final-review/decision", json={"action": "reject", "note": "não"})
+            assert r.json()["status"] == WF.FAILED
+            # decisão fora de hora é recusada
+            assert (await h.client.post(f"/tasks/{d['id']}/final-review/decision", json={"action": "reject"})).status_code == 409
+    run(go())
+
+
+def test_final_needs_human_resume_reruns_only_final_review(harness, workspace):
+    async def go():
+        b = build_mock_backends()
+        b["gemini"].responder = impl_writer("gemini", workspace,
+                                            final=[review_json("changes_requested", DEFAULT_FINDING), review_json("approved")])
+        b["deepseek"].responder = impl_writer("deepseek", workspace)
+        async with harness(b) as h:
+            d = await start(h)
+            assert d["status"] == WF.NEEDS_HUMAN
+            await h.client.post(f"/tasks/{d['id']}/resume")
+            d2 = await h.wait_done(d["id"])
+            assert d2["status"] == WF.COMPLETED and d2["final_review"]["attempt"] == 2
+            assert len(b["deepseek"].skill_calls("implement_task")) == 1
+    run(go())

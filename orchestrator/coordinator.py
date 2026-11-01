@@ -134,6 +134,8 @@ class Coordinator:
         mcp_status = await asyncio.to_thread(self.mcp.status)
 
         try:
+            if resume and self._final_review_only(wf):
+                return await self._resume_final_review_only(wf_id, goal, wf)
             if resume and wf.get("plan") and self.tasks.subtasks(wf_id):
                 plan = wf["plan"]
                 reset = self.tasks.reset_for_resume(wf_id)
@@ -150,21 +152,44 @@ class Coordinator:
 
             subs = self.tasks.subtasks(wf_id)
             final_review = await self._final_review_stage(wf_id, goal, subs)
-            fr_state = final_review["state"]
-            status = final_status(subs, self.tasks.cancel_requested(wf_id), paused, fr_state)
-            metrics = self._metrics(wf_id)
-            self.repo.update_workflow(wf_id, metrics_json=metrics)
-            self.tasks.event(wf_id, "orchestrator", "metrics", metrics)
-            result = self._result(wf_id, goal, self.repo.get_workflow(wf_id).get("plan") or plan, subs, final_review, metrics)
-            self.tasks.set_status(wf_id, status, phase="concluded", result_json=result,
-                                  error=self._final_error(status, final_review) or
-                                  (None if status == WF.COMPLETED else self._issues_summary(subs, paused)))
-            return status
+            return self._conclude(wf_id, goal, plan, subs, paused, final_review)
         except WorkflowAbort as exc:
             subs = self.tasks.subtasks(wf_id)
             self.tasks.set_status(wf_id, exc.status, error=str(exc), result_json=self._result(wf_id, goal, wf.get("plan"), subs, None, None))
             self.tasks.event(wf_id, "orchestrator", "aborted", str(exc), "error" if exc.status == WF.FAILED else "warning")
             return exc.status
+
+    def _conclude(self, wf_id: str, goal: str, plan: Any, subs: list[dict], paused: bool, final_review: dict) -> str:
+        status = final_status(subs, self.tasks.cancel_requested(wf_id), paused, final_review["state"])
+        metrics = self._metrics(wf_id)
+        self.repo.update_workflow(wf_id, metrics_json=metrics)
+        self.tasks.event(wf_id, "orchestrator", "metrics", metrics)
+        result = self._result(wf_id, goal, (self.repo.get_workflow(wf_id) or {}).get("plan") or plan, subs, final_review, metrics)
+        self.tasks.set_status(wf_id, status, phase="concluded", result_json=result,
+                              error=self._final_error(status, final_review) or
+                              (None if status == WF.COMPLETED else self._issues_summary(subs, paused)))
+        return status
+
+    def _final_review_only(self, wf: dict) -> bool:
+        """Retomada que deve rodar SÓ a revisão final: todas as subtarefas concluídas e a revisão final pendente/negativa."""
+        subs = self.tasks.subtasks(wf["id"])
+        if not subs or not all(s["status"] in ST.DONE for s in subs):
+            return False
+        if wf["status"] == WF.COMPLETED_UNREVIEWED:
+            return True
+        return wf["status"] == WF.NEEDS_HUMAN and wf.get("final_review_state") in FR.NEEDS_HUMAN
+
+    async def _resume_final_review_only(self, wf_id: str, goal: str, wf: dict) -> str:
+        """Não replaneja, não renegocia, não reabre subtarefas, não mexe em atribuições nem em contadores."""
+        prev = wf.get("final_review") or {}
+        self.repo.update_workflow(wf_id, cancel_requested=0)
+        self.tasks.event(wf_id, "orchestrator", "resume_final_review_only",
+                         f"Retomando só a revisão final (tentativa {int(prev.get('attempt') or 0) + 1}; estado anterior "
+                         f"{wf.get('final_review_state')}; snapshot anterior {prev.get('snapshot_hash')}).")
+        self.tasks.set_status(wf_id, WF.REVIEWING, phase="final_review")
+        subs = self.tasks.subtasks(wf_id)
+        final_review = await self._final_review_stage(wf_id, goal, subs)
+        return self._conclude(wf_id, goal, wf.get("plan"), subs, False, final_review)
 
     # ================================================================ 1. planejamento
     async def _plan(self, wf_id: str, goal: str, context_text: str, mcp_status: dict) -> dict:
@@ -775,6 +800,7 @@ class Coordinator:
         ok, reason = self.registry.can_accept(reviewer)
         if not ok:
             return finish(FR.SKIPPED, f"{reviewer} indisponível: {reason}")
+        self.tasks.set_status(wf_id, WF.REVIEWING, phase="final_review")
         summary = [{"id": s["plan_id"], "title": s["title"], "implemented_by": self._implementer_of(s),
                     "cross_reviewed_by": s.get("reviewer"), "files": s.get("files") or [],
                     "files_modified": (s.get("result") or {}).get("files_modified") if isinstance(s.get("result"), dict) else [],
