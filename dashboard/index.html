@@ -20,7 +20,7 @@
   tr.sel { background:#1f2e3f; } tr.click { cursor:pointer; } tr.click:hover { background:#1b2836; }
   .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); white-space:nowrap; }
   .s-ok, .s-completed, .s-approved, .s-passed { color:var(--ok); border-color:var(--ok); }
-  .s-warn, .s-needs_human, .s-paused, .s-awaiting_review, .s-checking, .s-no_active_checks, .s-blocked, .s-needs_attention, .s-interrupted, .s-completed_with_issues, .s-quota_exceeded, .s-contract_not_verified, .s-planned, .s-changes_requested, .s-skipped { color:var(--warn); border-color:var(--warn); }
+  .s-warn, .s-completed_unreviewed, .s-needs_human, .s-paused, .s-awaiting_review, .s-checking, .s-no_active_checks, .s-blocked, .s-needs_attention, .s-interrupted, .s-completed_with_issues, .s-quota_exceeded, .s-contract_not_verified, .s-planned, .s-changes_requested, .s-skipped { color:var(--warn); border-color:var(--warn); }
   .s-err, .s-failed, .s-rejected, .s-unavailable, .s-canceled { color:var(--err); border-color:var(--err); }
   .s-run, .s-planning, .s-delegating, .s-reviewing, .s-running, .s-queued, .s-pending { color:var(--info); border-color:var(--info); }
   .agent { border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:8px; }
@@ -88,6 +88,18 @@
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pill = s => `<span class="pill s-${esc(s)}">${esc(s)}</span>`;
+/*FR-BADGE-START*/
+// Selo da revisão final: nenhum estado final silencioso (testado em tests/unit/test_dashboard_badge.py).
+function finalReviewBadge(w){
+  const st = w.final_review_state;
+  if (st === 'disabled') return '<span class="pill s-warn" title="FINAL_REVIEW=false">revisão final desligada</span>';
+  if (w.status === 'completed_unreviewed') return `<span class="pill s-warn" title="${esc(st)}">sem revisão final</span>`;
+  if (st === 'accepted_by_human') return '<span class="pill s-warn">revisão final: aceita por decisão humana</span>';
+  if (st === 'rejected_by_human') return '<span class="pill s-err">revisão final: rejeitada por decisão humana</span>';
+  if (st && st !== 'passed' && st !== 'not_reached') return `<span class="pill s-warn">revisão final: ${esc(st)}</span>`;
+  return '';
+}
+/*FR-BADGE-END*/
 const t = iso => iso ? new Date(iso).toLocaleString('pt-BR') : '';
 let selected = null, tab = 'subtasks', gtab = 'errors';
 function toast(m){ const e=$('#toast'); e.textContent=m; e.style.display='block'; setTimeout(()=>e.style.display='none',3500); }
@@ -117,10 +129,27 @@ async function createTask(){ const goal = $('#goal').value.trim(); if(goal.lengt
   selected = r.id; $('#goal').value=''; toast('Solicitação enviada.'); refresh(); }catch(e){ toast(e.message); } }
 
 async function loadWorkflows(){ try{ const list = await api('/tasks?limit=30'); $('#wfs').innerHTML = list.map(w =>
-  `<tr class="click ${w.id===selected?'sel':''}" onclick="select('${w.id}')"><td class="muted">${t(w.created_at)}</td><td>${esc(w.goal.slice(0,110))}</td><td>${esc(w.mode||'full')}</td><td>${pill(w.status)}</td></tr>`).join(''); }catch(e){} }
+  `<tr class="click ${w.id===selected?'sel':''}" onclick="select('${w.id}')"><td class="muted">${t(w.created_at)}</td><td>${esc(w.goal.slice(0,110))}</td><td>${esc(w.mode||'full')}</td><td>${pill(w.status)} ${finalReviewBadge(w)}</td></tr>`).join(''); }catch(e){} }
 function select(id){ selected = id; loadWorkflows(); loadDetail(); }
 
 async function act(kind){ try{ await api(`/tasks/${selected}/${kind}`, {method:'POST'}); toast(kind==='cancel'?'Cancelamento solicitado.':'Retomando.'); }catch(e){ toast(e.message);} loadDetail(); }
+
+function finalReviewPanel(d){
+  const fr = d.final_review; if (!fr || !d.final_review_state || d.final_review_state==='not_reached') return '';
+  const own = (fr.self_authored_subtasks||[]);
+  const cov = (fr.coverage||[]).map(c => `${esc(c.id)}: ${esc(c.coverage)}`).join(' · ');
+  const needs = d.status==='needs_human' && ['changes_requested','rejected','unverified','invalidated'].includes(d.final_review_state);
+  return `<div class="agent"><b>Revisão final</b> ${pill(d.final_review_state)} ${finalReviewBadge(d)}
+    <div class="muted">revisor: ${esc(fr.reviewer||'—')} · tentativa ${esc(fr.attempt||'—')} · snapshot ${esc(fr.snapshot_hash||'—')}${fr.workspace_changed_since_last_attempt?' · <span class="lvl-warning">arquivos mudaram desde a tentativa anterior</span>':''}</div>
+    ${own.length?`<div class="lvl-warning muted">Implementadas pelo próprio revisor (cobertura só por revisão cruzada): ${own.map(esc).join(', ')}</div>`:''}
+    ${cov?`<div class="muted">cobertura: ${cov}</div>`:''}
+    ${fr.detail?`<pre>${esc(fr.detail)}</pre>`:''}
+    ${fr.escalation?`<details><summary class="muted">parecer</summary><pre>${esc(JSON.stringify(fr.escalation,null,2))}</pre></details>`:''}
+    ${needs?`<div class="row"><button class="sec" onclick="finalDecide('accept')">aceitar mesmo assim</button><button class="danger" onclick="finalDecide('reject')">rejeitar</button><span class="muted">ou Retomar para nova revisão final</span></div>`:''}
+  </div>`; }
+async function finalDecide(action){ const note = prompt(`Revisão final: "${action}" — nota (opcional):`, ''); if (note===null) return;
+  try{ await api(`/tasks/${selected}/final-review/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
+  toast('Decisão registrada.'); }catch(e){ toast(e.message); } loadDetail(); loadWorkflows(); }
 
 async function decide(sid, action){ const note = prompt(`Decisão "${action}" — nota para os agentes (opcional):`, ''); if (note===null) return;
   try{ await api(`/tasks/${selected}/subtasks/${sid}/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
@@ -129,12 +158,12 @@ async function decide(sid, action){ const note = prompt(`Decisão "${action}" �
 const TABS = {subtasks:'Subtarefas', messages:'Conversas A2A', events:'Histórico', files:'Arquivos', plan:'Plano/Métricas/Resultado'};
 async function loadDetail(){ if(!selected) return; $('#detail').style.display='block';
   let d; try{ d = await api(`/tasks/${selected}`); }catch(e){ return; }
-  $('#dTitle').innerHTML = `${esc(d.goal.slice(0,90))} ${pill(d.status)}`;
+  $('#dTitle').innerHTML = `${esc(d.goal.slice(0,90))} ${pill(d.status)} ${finalReviewBadge(d)}`;
   $('#btnCancel').style.display = ['queued','planning','delegating','reviewing'].includes(d.status)?'':'none';
-  $('#btnResume').style.display = ['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused'].includes(d.status)&&!d.running?'':'none';
+  $('#btnResume').style.display = ['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused','completed_unreviewed'].includes(d.status)&&!d.running?'':'none';
   $('#tabs').innerHTML = Object.entries(TABS).map(([k,v]) => `<button class="${k===tab?'on':''}" onclick="tab='${k}';loadDetail()">${v}</button>`).join('');
   let html = '';
-  if (tab==='subtasks') html = (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:6px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') +
+  if (tab==='subtasks') html = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:6px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') +
     `<table><tr><th>#</th><th>Subtarefa</th><th>Implementou</th><th>Revisou</th><th>Motivo da atribuição</th><th>Ajustes / checagem / tentativas</th><th>Estado</th><th>Detalhe</th></tr>${(d.subtasks||[]).map(s =>
       `<tr><td>${esc(s.plan_id)}</td><td>${esc(s.title)}<div class="muted">${esc((s.files||[]).join(', '))}</div></td>
       <td>${esc(s.assigned_to||s.agent)}</td><td>${esc(s.reviewer||'—')}</td><td class="muted">${esc(s.assignment_reason||'')}</td>
