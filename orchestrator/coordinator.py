@@ -27,7 +27,7 @@ from communication.a2a_client import A2AAgentClient, A2ADelegationError
 from communication.messaging import DelegationResult
 from core.config import Settings
 from core.logging_setup import redact
-from database.repository import Repository
+from database.repository import Repository, utc_now
 from mcp_bridge.server_registry import MCPServerRegistry
 from memory.context_manager import ContextManager
 from memory.decision_store import DecisionStore
@@ -35,6 +35,7 @@ from orchestrator.agent_registry import AgentRegistry
 from orchestrator.assignment import AssignmentRules, other, resolve_assignment
 from orchestrator.checks import ChecksRunner
 from orchestrator.evidence import review_problem, validate_review
+from orchestrator.dependency_analyzer import DependencyAnalyzer
 from orchestrator.file_locks import FileLockManager, LockConflictError, PathOutsideWorkspaceError, normalize_file
 from orchestrator.git_integration import GitInspector, _sha
 from orchestrator.schemas import (
@@ -193,15 +194,20 @@ class Coordinator:
 
     # ================================================================ 1. planejamento
     async def _plan(self, wf_id: str, goal: str, context_text: str, mcp_status: dict) -> dict:
+        """Planeja e valida estruturalmente antes de criar qualquer subtarefa.
+
+        Plano inválido recebe uma única reformulação do mesmo planejador. Persistindo o
+        erro, o workflow vai para needs_human e nenhuma implementação começa.
+        """
         self.tasks.set_status(wf_id, WF.PLANNING)
-        payload = {"goal": goal, "context_text": context_text, "max_subtasks": self.s.max_subtasks, "mcp_status": mcp_status}
+        base_payload = {"goal": goal, "context_text": context_text, "max_subtasks": self.s.max_subtasks, "mcp_status": mcp_status}
         planner, res = None, None
         for candidate in ("gemini", "deepseek"):
             ok, reason = self.registry.can_accept(candidate)
             if not ok:
                 self.tasks.event(wf_id, "orchestrator", "planner_unavailable", f"{candidate}: {reason}", "warning")
                 continue
-            res = await self._delegate(wf_id, None, candidate, "plan_feature", payload, summary=f"Planejar: {goal[:200]}")
+            res = await self._delegate(wf_id, None, candidate, "plan_feature", base_payload, summary=f"Planejar: {goal[:200]}")
             if res.ok:
                 planner = candidate
                 break
@@ -213,34 +219,50 @@ class Coordinator:
         if planner is None:
             detail = f" ({res.state}/{res.error_code}: {res.status_message})" if res else ""
             raise WorkflowAbort(f"Nenhum agente disponível para planejar{detail}.", WF.BLOCKED)
-        try:
-            plan_model = Plan.model_validate(res.data or {})
-        except ValidationError as exc:
-            raise WorkflowAbort(f"Plano inválido: {redact(exc)[:400]}") from exc
-        tasks = [t.model_dump() for t in plan_model.tasks[: self.s.max_subtasks]]
-        if len(plan_model.tasks) > self.s.max_subtasks:
-            self.tasks.event(wf_id, "orchestrator", "plan_truncated", f"Plano truncado para {self.s.max_subtasks} subtarefas.", "warning")
-        for i, t in enumerate(tasks, start=1):
-            t["id"] = t.get("id") or f"T{i}"
-            valid, invalid = [], []
-            for f in t.get("files", []):
-                try:
-                    normalize_file(self.s.project_root, f)
-                    valid.append(f)
-                except PathOutsideWorkspaceError:
-                    invalid.append(f)
-            if invalid:
-                self.tasks.event(wf_id, "orchestrator", "invalid_paths", f"{t['id']}: caminhos fora do workspace removidos: {invalid}", "warning")
-            t["files"] = valid
+
+        analyzer = DependencyAnalyzer(self.s.project_root)
+        reformulations = 0
+        previous_plan = None
+        while True:
+            try:
+                plan_model = Plan.model_validate(res.data or {})
+            except ValidationError as exc:
+                raise WorkflowAbort(f"Plano inválido: {redact(exc)[:400]}") from exc
+            tasks = [t.model_dump() for t in plan_model.tasks[: self.s.max_subtasks]]
+            if len(plan_model.tasks) > self.s.max_subtasks:
+                self.tasks.event(wf_id, "orchestrator", "plan_truncated", f"Plano truncado para {self.s.max_subtasks} subtarefas.", "warning")
+            # IDs vazios ganham fallback; duplicados permanecem para o Analyzer rejeitar.
+            for i, task in enumerate(tasks, start=1):
+                task["id"] = task.get("id") or f"T{i}"
+            analysis = analyzer.analyze(tasks).to_dict()
+            self.repo.save_dependency_analysis(wf_id, analysis, reformulations)
+            self.tasks.event(wf_id, "orchestrator", "dependency_analysis", analysis,
+                             "info" if analysis["valid"] else "warning")
+            if analysis["valid"]:
+                break
+            if reformulations >= 1:
+                self.tasks.event(wf_id, "orchestrator", "plan_invalid_needs_human", analysis["errors"], "warning")
+                raise WorkflowAbort("Plano estruturalmente inválido após uma reformulação: " +
+                                    "; ".join(e.get("code", "invalid") for e in analysis["errors"]), WF.NEEDS_HUMAN)
+            previous_plan = {**plan_model.model_dump(), "tasks": tasks}
+            reformulations += 1
+            self.repo.save_dependency_analysis(wf_id, analysis, reformulations)
+            self.tasks.event(wf_id, "orchestrator", "plan_reformulation_requested", analysis["errors"], "warning")
+            payload = {**base_payload, "validation_errors": analysis["errors"], "previous_plan": previous_plan}
+            res = await self._delegate(wf_id, None, planner, "plan_feature", payload, summary="Reformular plano inválido")
+            if not res.ok:
+                raise WorkflowAbort(f"Reformulação do plano falhou ({res.state}/{res.error_code}): {res.status_message}",
+                                    WF.BLOCKED if (res.error_code in UNAVAILABLE_CODES or res.state == "rejected") else WF.NEEDS_HUMAN)
+
         fallback = planner != "gemini"
         plan = {**plan_model.model_dump(), "tasks": tasks, "planned_by": planner, "planned_by_fallback": fallback,
-                "plan_validated_by": None}
-        # Plano de fallback: decisões ficam "proposed" até o Gemini validar o plano na revisão.
+                "plan_validated_by": None, "dependency_analysis": analysis}
         for d in plan_model.decisions:
             self.decisions.add(d.title, d.decision, author=planner, rationale=d.rationale, tags=d.tags, workflow_id=wf_id,
                                status="proposed" if fallback else "accepted")
         self.repo.update_workflow(wf_id, plan_json=plan, planned_by=planner, planned_by_fallback=1 if fallback else 0)
         self.tasks.create_subtasks(wf_id, tasks)
+        self.repo.apply_dependency_analysis(wf_id, analysis)
         self.tasks.event(wf_id, planner, "plan", plan, "warning" if fallback else "info")
         if plan_model.decisions:
             await asyncio.to_thread(self.context.refresh_decisions, wf_id)
@@ -342,17 +364,41 @@ class Coordinator:
                     runnable.append(s)
             if not runnable:
                 return False
-            batch, used = [], set()
-            for s in runnable:
-                files = {normalize_file(self.s.project_root, f) for f in s.get("files") or []}
-                if len(batch) >= self.s.max_parallel_subtasks:
-                    break
+            # Consome a menor onda topológica ainda executável. Paralelismo é opt-in duplo.
+            groups = [s.get("execution_group") or 1 for s in runnable]
+            current_group = min(groups)
+            candidates = [s for s in runnable if (s.get("execution_group") or 1) == current_group]
+            limit = self.s.max_parallel_subtasks if self.s.parallel_execution else 1
+            batch, used, agents = [], set(), Counter()
+            for candidate in candidates:
+                files = {normalize_file(self.s.project_root, f) for f in candidate.get("files") or []}
+                agent = candidate.get("assigned_to") or candidate["agent"]
+                if len(batch) >= limit or agents[agent] >= self.s.parallel_per_agent:
+                    continue
                 if files & used:
                     continue
-                batch.append(s)
+                batch.append(candidate)
                 used |= files
+                agents[agent] += 1
             previous = self._previous_results(wf_id)
-            await asyncio.gather(*(self._run_subtask(wf_id, goal, s, mcp_status, previous) for s in batch))
+            outcomes = await asyncio.gather(
+                *(self._run_subtask(wf_id, goal, item, mcp_status, previous) for item in batch),
+                return_exceptions=True,
+            )
+            failures = [str(x) for x in outcomes if isinstance(x, BaseException)]
+            if failures:
+                self.tasks.event(wf_id, "orchestrator", "execution_group_failed",
+                                 {"group": current_group, "errors": failures}, "error")
+                raise WorkflowAbort(f"Falha interna no grupo {current_group}: {failures[0]}")
+            # A integração da onda usa checagens automáticas na união dos arquivos.
+            group_files = sorted({f for item in batch for f in (item.get("files") or [])})
+            integration = await asyncio.to_thread(self.checks.run, group_files)
+            self.tasks.event(wf_id, "orchestrator", "group_integration_checks",
+                             {"group": current_group, "status": integration.get("status"), "files": group_files,
+                              "results": integration.get("results")},
+                             "warning" if integration.get("status") == "failed" else "info")
+            if integration.get("status") == "failed":
+                raise WorkflowAbort(f"Checagem de integração do grupo {current_group} falhou.", WF.NEEDS_HUMAN)
 
     def _previous_results(self, wf_id: str) -> list[str]:
         out = []
@@ -388,14 +434,22 @@ class Coordinator:
         if (sub.get("reviewer") or reviewer) != reviewer or not sub.get("reviewer"):
             self.repo.update_subtask(sid, assigned_to=implementer, reviewer=reviewer, agent=implementer)
         files = list(sub.get("files") or [])
+        explicit_resources = list(sub.get("resources") or (sub.get("spec") or {}).get("resources") or [])
         resources = [self.locks.file_resource(f) for f in files]
+        for resource in explicit_resources:
+            if str(resource).startswith("mcp:"):
+                resources.append(str(resource))
+        self.repo.update_subtask(sid, started_at=utc_now())
         try:
             await self.locks.acquire_wait(resources, implementer, wf_id, sid, self.s.file_lock_wait_seconds)
         except LockConflictError as exc:
             self.repo.update_subtask(sid, status=ST.FAILED, error=str(exc))
             self.tasks.event(wf_id, "orchestrator", "lock_conflict", str(exc), "error", sid)
             return
-        reserved = {r.split(":", 1)[1] for r in resources}
+        reserved = {r.split(":", 1)[1] for r in resources if r.startswith("file:")}
+        stage_id = self.repo.start_stage(wf_id, "subtask", subtask_id=sid, agent=implementer,
+                                         execution_group=sub.get("execution_group"),
+                                         detail={"files": files, "resources": explicit_resources})
         try:
             await self._cycle(wf_id, goal, self.repo.get_subtask(sid), implementer, reviewer, files, reserved, mcp_status,
                               previous, review_only)
@@ -913,3 +967,4 @@ class Coordinator:
             "metrics": metrics,
             "file_changes": self.repo.list_file_changes(wf_id),
         }
+

@@ -10,7 +10,7 @@ from typing import Any
 
 from orchestrator.schemas import CATEGORIES, CHECKLIST
 
-AGENT_LABEL = {"gemini": "Gemini 4 Argon High", "deepseek": "DeepSeek V4.1 Flash Free"}
+AGENT_LABEL = {"gemini": "Gemini", "deepseek": "DeepSeek"}  # o modelo real vem do .env (AGY_MODEL/OPENCODE_MODEL)
 AGENT_PROFILE = {
     "gemini": "mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes",
     "deepseek": "mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração",
@@ -24,6 +24,8 @@ COMMON_RULES = """REGRAS GERAIS (valem para todos os agentes):
 - Não altere arquivos fora dos ARQUIVOS RESERVADOS da sua subtarefa. Se precisar, reporte em "issues".
 - Não execute comandos destrutivos (reset, checkout, rm, push) nem altere configurações do repositório.
 - Não assuma conexão com o Roblox Studio via MCP: use apenas se o ESTADO MCP indicar conexão ativa para você.
+- N?O execute comandos de terminal/shell (s?o negados automaticamente e sua resposta se perde). Use apenas as
+  ferramentas de leitura, busca e edi??o de arquivos. Checagens (lint) s?o feitas pelo orquestrador.
 - Responda SOMENTE com o JSON pedido, sem texto fora dele."""
 
 READ_ONLY = "MODO SOMENTE LEITURA: NÃO crie, edite, mova nem apague arquivos nesta etapa. Qualquer alteração invalida sua resposta."
@@ -47,7 +49,17 @@ def _dump(v: Any) -> str:
     return json.dumps(v, ensure_ascii=False)
 
 
-def plan_prompt(agent: str, goal: str, context_text: str, max_subtasks: int, mcp_status: dict | None) -> str:
+def plan_prompt(agent: str, goal: str, context_text: str, max_subtasks: int, mcp_status: dict | None,
+                validation_errors: list[dict] | None = None, previous_plan: dict | None = None) -> str:
+    reform = ""
+    if validation_errors:
+        reform = f"""
+REFORMULAÇÃO OBRIGATÓRIA (única): o plano anterior foi rejeitado pelo validador determinístico.
+Erros estruturais: {_dump(validation_errors)}
+Plano anterior: {_dump(previous_plan or {})}
+Corrija SOMENTE o necessário. IDs devem ser únicos, depends_on deve referenciar IDs existentes, o grafo não pode ter ciclos
+e todos os caminhos devem ficar dentro do workspace. Preserve requisitos e trabalho válido do plano anterior.
+"""
     return f"""Você é {AGENT_LABEL.get(agent, agent)} e vai PLANEJAR uma funcionalidade de um projeto Roblox em Luau. {READ_ONLY}
 {COMMON_RULES}
 {_mcp_line(mcp_status, agent)}
@@ -81,6 +93,9 @@ Categorias permitidas: {", ".join(CATEGORIES)}.
   "risks": ["..."]
 }}
 Duas subtarefas NÃO podem listar o mesmo arquivo, a menos que uma dependa da outra (depends_on).
+Para cada tarefa, declare também: "reads" (arquivos consumidos mas não modificados), "contracts" (interfaces, remotes,
+esquemas/persistência compartilhados), "resources" (ex.: mcp:roblox_studio:session) e "uncertain" (incertezas reais).
+{reform}
 Não informe "reviewer": o revisor é sempre o outro agente.
 
 SOLICITAÇÃO DO USUÁRIO:
@@ -186,10 +201,11 @@ PLANO: {_dump(validate_plan.get('plan'))}
     reform = ""
     if validation_errors:
         reform = f"""
-REFORMULAÇÃO OBRIGATÓRIA (única): seus achados anteriores foram DESCARTADOS por evidência inválida:
+REFORMULAÇÃO OBRIGATÓRIA (única): sua resposta anterior NÃO foi aceita. Motivos:
 {_dump(validation_errors)}
 Revisão anterior: {_dump(previous_review or {})}
-Refaça a revisão citando arquivo, linha e um trecho LITERAL curto copiado do arquivo (até ±5 linhas da linha informada).
+Se o motivo for de FORMATO, reenvie a mesma avaliação exatamente no JSON pedido (use "" em vez de null em textos).
+Se for de EVIDÊNCIA, refaça a revisão citando arquivo, linha e um trecho LITERAL curto copiado do arquivo (até ±5 linhas da linha informada).
 Se não houver problema real comprovável, use "approved".
 """
     return f"""Você é {AGENT_LABEL.get(reviewer, reviewer)} e vai REVISAR o trabalho de {AGENT_LABEL.get(implementer, implementer)}. {READ_ONLY}
@@ -246,10 +262,11 @@ conta como cobertura dessas subtarefas (elas já foram revisadas pelo outro agen
     reform = ""
     if validation_errors:
         reform = f"""
-REFORMULAÇÃO OBRIGATÓRIA (única): seus achados anteriores foram DESCARTADOS por evidência inválida:
+REFORMULAÇÃO OBRIGATÓRIA (única): sua resposta anterior NÃO foi aceita. Motivos:
 {_dump(validation_errors)}
 Revisão anterior: {_dump(previous_review or {})}
-Refaça citando arquivo, linha e trecho LITERAL curto (até ±5 linhas). Se não houver problema comprovável, use "approved".
+Se o motivo for de FORMATO, reenvie a mesma avaliação exatamente no JSON pedido (use "" em vez de null em textos).
+Se for de EVIDÊNCIA, refaça citando arquivo, linha e trecho LITERAL curto (até ±5 linhas). Se não houver problema comprovável, use "approved".
 """
     return f"""Você é {AGENT_LABEL.get(agent, agent)} e vai fazer a REVISÃO FINAL DE INTEGRAÇÃO do trabalho abaixo. {READ_ONLY}
 {COMMON_RULES}
@@ -275,3 +292,4 @@ Responda SOMENTE JSON:
 CONTEXTO COMPARTILHADO:
 {context_text}
 """
+

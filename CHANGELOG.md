@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.2
+- Contratos aceitam `null` em campos opcionais (antes uma revisão aprovada com `"rejection_reason": null` era tratada
+  como não estruturada e gastava uma revisão extra).
+- Reformulação distingue erro de FORMATO de erro de EVIDÊNCIA; sem achado sintético "não retornou JSON".
+- Painel: atualização sem perder rolagem/seleção (`setHTML`); `docs/FRONTEND.md`.
+- Checagens recebem os caminhos com maiúsculas originais.
+- `Read-EnvFile` aceita caminho relativo.
+- Cards e prompts sem o nome do modelo fixo (o modelo vem do `.env`).
+
 ## 0.4.1 — revisão final sem furos
 - `final_review_state` sempre gravado (passed, disabled, skipped, failed, changes_requested, rejected, unverified,
   invalidated, not_reached, accepted_by_human, rejected_by_human) e decisão centralizada na função pura `final_status()`.

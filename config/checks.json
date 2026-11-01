@@ -7,7 +7,7 @@
     "Rode .\\scripts\\check_integrations.ps1 para ver quais estão instaladas."
   ],
   "checks": [
-    {"id": "selene",       "binary": "selene",       "args": ["{files}"],            "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 120, "enabled": false},
+    {"id": "selene", "binary": "selene", "args": ["--allow-warnings", "{files}"], "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 120, "enabled": true},
     {"id": "stylua",       "binary": "stylua",       "args": ["--check", "{files}"], "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 120, "enabled": false},
     {"id": "luau-analyze", "binary": "luau-analyze", "args": ["{files}"],            "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 180, "enabled": false}
   ]

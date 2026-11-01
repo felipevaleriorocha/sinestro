@@ -3,6 +3,8 @@ function Read-EnvFile {
     param([Parameter(Mandatory)][string]$Path)
     $values = @{}
     if (!(Test-Path $Path)) { return $values }
+    # .NET resolve caminhos relativos pela pasta do processo, não pela do PowerShell: converte para completo.
+    $Path = (Resolve-Path -LiteralPath $Path).ProviderPath
     foreach ($line in [System.IO.File]::ReadAllLines($Path, [System.Text.Encoding]::UTF8)) {
         $t = $line.Trim()
         if ($t -eq '' -or $t.StartsWith('#') -or -not $t.Contains('=')) { continue }

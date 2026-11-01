@@ -75,7 +75,8 @@ class Repository:
 
     def update_workflow(self, workflow_id: str, **fields: Any) -> None:
         allowed = {"status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested",
-                   "planned_by", "planned_by_fallback", "metrics_json", "mode", "final_review_state", "final_review_json"}
+                   "planned_by", "planned_by_fallback", "metrics_json", "mode", "final_review_state", "final_review_json",
+                   "dependency_analysis_json", "plan_reformulations"}
         sets, params = ["updated_at=?"], [utc_now()]
         for key, value in fields.items():
             if key not in allowed:
@@ -96,7 +97,7 @@ class Repository:
         if not row:
             return None
         d = dict(row)
-        for k in ("result_json", "context_sources_json", "plan_json", "metrics_json", "final_review_json"):
+        for k in ("result_json", "context_sources_json", "plan_json", "metrics_json", "final_review_json", "dependency_analysis_json"):
             d[k.replace("_json", "")] = _loads(d.pop(k, None))
         d["cancel_requested"] = bool(d.get("cancel_requested"))
         d["planned_by_fallback"] = bool(d.get("planned_by_fallback"))
@@ -177,7 +178,8 @@ class Repository:
     def update_subtask(self, subtask_id: str, **fields: Any) -> None:
         allowed = {"status", "agent", "review_cycles", "a2a_context_id", "last_a2a_task_id", "result_json", "review_json", "error",
                    "assigned_to", "reviewer", "assignment_reason", "assignment_json", "checks_json", "escalation_json",
-                   "human_decision_json", "check_fix_attempts", "impl_attempts"}
+                   "human_decision_json", "check_fix_attempts", "impl_attempts", "dependency_class", "execution_group",
+                   "dependency_reasons_json", "resources_json", "started_at", "finished_at"}
         if fields.get("assigned_to") and fields.get("reviewer") and fields["assigned_to"] == fields["reviewer"]:
             raise ValueError("reviewer não pode ser igual a assigned_to (autorrevisão proibida).")
         sets, params = ["updated_at=?"], [utc_now()]
@@ -208,7 +210,7 @@ class Repository:
         for r in rows:
             d = dict(r)
             for k in ("spec_json", "files_json", "depends_on_json", "result_json", "review_json", "assignment_json", "checks_json",
-                      "escalation_json", "human_decision_json"):
+                      "escalation_json", "human_decision_json", "dependency_reasons_json", "resources_json"):
                 d[k.replace("_json", "")] = _loads(d.pop(k, None))
             out.append(d)
         return out
@@ -288,6 +290,44 @@ class Repository:
                 (agent, context_key, session_id, model, now, now),
             )
 
+    # ------------------------------------------------------------------ dependency analysis / stages
+    def save_dependency_analysis(self, workflow_id: str, analysis: dict, reformulations: int = 0) -> None:
+        self.update_workflow(workflow_id, dependency_analysis_json=analysis, plan_reformulations=reformulations)
+
+    def apply_dependency_analysis(self, workflow_id: str, analysis: dict) -> None:
+        groups = {task_id: index for index, group in enumerate(analysis.get("groups") or [], 1) for task_id in group}
+        reasons: dict[str, list[str]] = {}
+        for rel in analysis.get("relations") or []:
+            for task_id in (rel.get("source"), rel.get("target")):
+                if task_id:
+                    reasons.setdefault(task_id, []).extend(rel.get("reasons") or [])
+        for sub in self.list_subtasks(workflow_id):
+            plan_id = sub.get("plan_id")
+            resources = (sub.get("spec") or {}).get("resources") or []
+            self.update_subtask(sub["id"], dependency_class=(analysis.get("classifications") or {}).get(plan_id),
+                                execution_group=groups.get(plan_id), dependency_reasons_json=sorted(set(reasons.get(plan_id, []))),
+                                resources_json=resources)
+
+    def start_stage(self, workflow_id: str, stage: str, *, subtask_id: str | None = None, agent: str | None = None,
+                    execution_group: int | None = None, detail: Any = None) -> int:
+        with self.connect() as con:
+            cur = con.execute("INSERT INTO stage_log(workflow_id, subtask_id, execution_group, stage, agent, status, started_at, detail_json) "
+                              "VALUES(?,?,?,?,?,'running',?,?)",
+                              (workflow_id, subtask_id, execution_group, stage, agent, utc_now(), _dumps(detail)))
+            return int(cur.lastrowid)
+
+    def finish_stage(self, stage_id: int, status: str, detail: Any = None) -> None:
+        with self.connect() as con:
+            con.execute("UPDATE stage_log SET status=?, finished_at=?, detail_json=COALESCE(?, detail_json) WHERE id=?",
+                        (status, utc_now(), _dumps(detail), stage_id))
+
+    def list_stages(self, workflow_id: str) -> list[dict]:
+        with self.connect() as con:
+            rows = [dict(r) for r in con.execute("SELECT * FROM stage_log WHERE workflow_id=? ORDER BY id", (workflow_id,)).fetchall()]
+        for row in rows:
+            row["detail"] = _loads(row.pop("detail_json", None))
+        return rows
+
     # ------------------------------------------------------------------ file changes
     def add_file_change(self, **c: Any) -> None:
         with self.connect() as con:
@@ -310,3 +350,4 @@ class Repository:
         params.append(limit)
         with self.connect() as con:
             return [dict(r) for r in con.execute(sql, params).fetchall()]
+

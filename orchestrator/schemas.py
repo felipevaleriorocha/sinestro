@@ -18,7 +18,18 @@ def _str_list(v: Any) -> list[str]:
     return [str(v)]
 
 
-class DecisionProposal(BaseModel):
+class _Lenient(BaseModel):
+    """Modelos costumam mandar null em campos opcionais: null = campo ausente (vale o padrão)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_nulls(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v is not None}
+        return data
+
+
+class DecisionProposal(_Lenient):
     title: str
     decision: str
     rationale: str = ""
@@ -28,7 +39,7 @@ class DecisionProposal(BaseModel):
 CATEGORIES = ("architecture", "security", "server", "datastore", "remotes", "ui", "boilerplate", "mechanical", "config", "other")
 
 
-class PlannedTask(BaseModel):
+class PlannedTask(_Lenient):
     id: str = ""
     agent: AgentName = "deepseek"          # compatível com planos da v0.3; espelha assigned_to
     assigned_to: AgentName = "deepseek"    # PROPOSTA do planejador (turno 1); a decisão final é AssignmentDecision
@@ -39,6 +50,10 @@ class PlannedTask(BaseModel):
     instructions: str = ""
     context: str = ""
     files: list[str] = Field(default_factory=list)
+    reads: list[str] = Field(default_factory=list)
+    contracts: list[str] = Field(default_factory=list)
+    resources: list[str] = Field(default_factory=list)
+    uncertain: list[str] = Field(default_factory=list)
     acceptance_criteria: list[str] = Field(default_factory=list)
     constraints: list[str] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list)
@@ -65,13 +80,13 @@ class PlannedTask(BaseModel):
         v = str(v or "other").strip().lower()
         return v if v in CATEGORIES else "other"
 
-    @field_validator("files", "acceptance_criteria", "constraints", "depends_on", mode="before")
+    @field_validator("files", "reads", "contracts", "resources", "uncertain", "acceptance_criteria", "constraints", "depends_on", mode="before")
     @classmethod
     def _lists(cls, v: Any) -> list[str]:
         return _str_list(v)
 
 
-class Plan(BaseModel):
+class Plan(_Lenient):
     summary: str = ""
     planned_by: str = ""
     tasks: list[PlannedTask]
@@ -84,7 +99,7 @@ class Plan(BaseModel):
         return _str_list(v)
 
 
-class ImplementationReport(BaseModel):
+class ImplementationReport(_Lenient):
     status: Literal["done", "partial", "blocked", "failed"] = "done"
     summary: str = ""
     files_modified: list[str] = Field(default_factory=list)
@@ -112,7 +127,7 @@ Verdict = Literal["approved", "changes_requested", "needs_clarification", "rejec
 CHECKLIST = ("acceptance_criteria", "roblox_api_misuse", "edge_case", "client_server_security", "other")
 
 
-class ReviewFinding(BaseModel):
+class ReviewFinding(_Lenient):
     """Achado de revisão com evidência verificável (arquivo + linha + trecho literal)."""
     file: str = ""
     line: int = 0
@@ -149,7 +164,7 @@ class ReviewFinding(BaseModel):
         return v if v in CHECKLIST else "other"
 
 
-class ReviewResult(BaseModel):
+class ReviewResult(_Lenient):
     verdict: Verdict
     summary: str = ""
     findings: list[ReviewFinding] = Field(default_factory=list)
@@ -192,7 +207,7 @@ class AssignmentProposal(BaseModel):
     proposed_by: AgentName
 
 
-class AssignmentResponseItem(BaseModel):
+class AssignmentResponseItem(_Lenient):
     task_id: str
     decision: Literal["accept", "counter"] = "accept"
     proposed_agent: AgentName | None = None
@@ -213,7 +228,7 @@ class AssignmentResponseItem(BaseModel):
         return v if v in {"gemini", "deepseek"} else None
 
 
-class AssignmentResponse(BaseModel):
+class AssignmentResponse(_Lenient):
     responses: list[AssignmentResponseItem] = Field(default_factory=list)
     structured: bool = True
 
@@ -240,3 +255,4 @@ class AssignmentDecision(BaseModel):
         if self.reviewer == self.assigned_to:
             raise ValueError("reviewer não pode ser igual a assigned_to (quem escreve nunca revisa o próprio trabalho).")
         return self
+

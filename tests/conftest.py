@@ -53,6 +53,7 @@ def make_settings(tmp_path: Path, workspace: Path, monkeypatch):
             "FILE_LOCK_WAIT_SECONDS": "0",
             "OPENCODE_SERVER_PASSWORD": "s3cr3t-test-pass",
             "MCP_CONFIG_FILE": str(tmp_path / "no_mcp.json"),
+            "CHECKS_FILE": str(tmp_path / "no_checks.json"),  # testes n?o dependem do config/checks.json local
         }
         base.update({k: str(v) for k, v in overrides.items()})
         return load_settings(env_file=tmp_path / "absent.env", overrides=base)

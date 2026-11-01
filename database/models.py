@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 BASE_TABLES = [
     # --- v0.2 (preservadas) ---
@@ -189,6 +189,26 @@ ADDED_COLUMNS_V5 = {
         ("final_review_json", "TEXT"),
     ],
 }
+# Schema 6: análise determinística de dependências e observabilidade de etapas.
+ADDED_COLUMNS_V6 = {
+    "tasks": [
+        ("dependency_analysis_json", "TEXT"),
+        ("plan_reformulations", "INTEGER NOT NULL DEFAULT 0"),
+    ],
+    "subtasks": [
+        ("dependency_class", "TEXT"),
+        ("execution_group", "INTEGER"),
+        ("dependency_reasons_json", "TEXT"),
+        ("resources_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("started_at", "TEXT"),
+        ("finished_at", "TEXT"),
+    ],
+}
+STAGE_TABLE = """CREATE TABLE IF NOT EXISTS stage_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, workflow_id TEXT NOT NULL, subtask_id TEXT,
+    execution_group INTEGER, stage TEXT NOT NULL, agent TEXT, status TEXT NOT NULL,
+    started_at TEXT NOT NULL, finished_at TEXT, detail_json TEXT
+)"""
 
 
 def read_schema_version(db_path: Path) -> int | None:
@@ -243,6 +263,9 @@ def migrate(con: sqlite3.Connection) -> None:
     _add_columns(con, ADDED_COLUMNS)
     _add_columns(con, ADDED_COLUMNS_V4)
     _add_columns(con, ADDED_COLUMNS_V5)
+    _add_columns(con, ADDED_COLUMNS_V6)
+    con.execute(STAGE_TABLE)
+    con.execute("CREATE INDEX IF NOT EXISTS ix_stage_wf ON stage_log(workflow_id)")
     # Linhas antigas: quem implementou era `agent`. Revisor fica NULL (não inventamos histórico).
     con.execute("UPDATE subtasks SET assigned_to=agent WHERE assigned_to IS NULL")
     for ddl in INDEXES:
@@ -252,3 +275,4 @@ def migrate(con: sqlite3.Connection) -> None:
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         (str(SCHEMA_VERSION),),
     )
+

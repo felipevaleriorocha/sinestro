@@ -74,6 +74,11 @@ def result_from_payload(payload: dict[str, Any], model: str) -> AgentResult:
             raise QuotaExceededError(f"Gemini/Antigravity sem cota: {detail_text[:500]}")
         raise AgentResponseError(f"Antigravity terminou com status {status}: {detail_text[:1500]}")
     if not isinstance(response, str) or not response.strip():
+        denied = payload.get("denied_actions") or []
+        if denied:
+            names = ", ".join(str(d.get("action") or d) if isinstance(d, dict) else str(d) for d in denied)
+            raise AgentResponseError(f"Antigravity terminou sem resposta: permiss?o negada pelo agy ({names}). "
+                                     "O agente tentou uma a??o n?o permitida em modo n?o interativo.")
         raise AgentResponseError("Antigravity retornou status SUCCESS com resposta vazia.")
     duration = payload.get("duration_seconds")
     return AgentResult(

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from communication.a2a_server import agent_base_path, card_to_dict
 from orchestrator.assignment import other
+from orchestrator.dependency_analyzer import DependencyAnalyzer
 from orchestrator.schemas import AssignmentDecision
 from orchestrator.task_manager import FR, ST, WF, final_status
 
@@ -47,7 +48,7 @@ def C(request: Request):
 @router.get("/health", tags=["Sistema"])
 async def health(request: Request) -> dict[str, Any]:
     c = C(request)
-    return {"ok": True, "version": "0.4.0", "mock_mode": c.mock_mode, **c.settings.public_summary(),
+    return {"ok": True, "version": "0.5.0", "mock_mode": c.mock_mode, **c.settings.public_summary(),
             "git_repo": await asyncio.to_thread(c.git.is_repo)}
 
 
@@ -77,11 +78,43 @@ def get_task(task_id: str, request: Request) -> dict[str, Any]:
         "plan": wf.get("plan"), "context": wf.get("context_sources"), "cancel_requested": wf.get("cancel_requested"),
         "final_review_state": wf.get("final_review_state"), "final_review": wf.get("final_review"),
         "planned_by": wf.get("planned_by"), "planned_by_fallback": wf.get("planned_by_fallback"), "metrics": wf.get("metrics"),
+        "dependency_analysis": wf.get("dependency_analysis"), "plan_reformulations": wf.get("plan_reformulations", 0),
+        "stages": c.repo.list_stages(task_id),
         "running": c.coordinator.is_running(task_id),
         "subtasks": c.tasks.subtasks(task_id),
         "events": [{k: e[k] for k in ("created_at", "agent", "event", "level", "content", "subtask_id")} for e in events],
     }
 
+
+
+@router.post("/tasks/{task_id}/analyze", tags=["Tarefas"])
+def analyze_task(task_id: str, request: Request) -> dict:
+    """Reanalisa deterministicamente o plano persistido. Não chama modelos nem executa subtarefas."""
+    c = C(request)
+    wf = c.repo.get_workflow(task_id)
+    if not wf:
+        raise HTTPException(404, "Tarefa não encontrada.")
+    plan = wf.get("plan") or {}
+    if not plan.get("tasks"):
+        raise HTTPException(409, "Workflow ainda não possui plano.")
+    result = DependencyAnalyzer(c.settings.project_root).analyze(plan["tasks"]).to_dict()
+    return result
+
+@router.get("/tasks/{task_id}/report", tags=["Tarefas"])
+def task_report(task_id: str, request: Request) -> dict:
+    """Relatório operacional consolidado, incluindo dependências e execução real."""
+    c = C(request)
+    wf = c.repo.get_workflow(task_id)
+    if not wf:
+        raise HTTPException(404, "Tarefa não encontrada.")
+    return {
+        "id": task_id, "goal": wf["goal"], "status": wf["status"],
+        "dependency_analysis": wf.get("dependency_analysis"),
+        "subtasks": c.tasks.subtasks(task_id),
+        "stages": c.repo.list_stages(task_id),
+        "file_changes": c.repo.list_file_changes(task_id),
+        "final_review": wf.get("final_review"), "metrics": wf.get("metrics"),
+    }
 
 @router.post("/tasks/{task_id}/cancel", tags=["Tarefas"])
 async def cancel_task(task_id: str, request: Request) -> dict:
@@ -317,3 +350,4 @@ def clear_agent_quota(name: str, request: Request) -> dict:
         raise HTTPException(400, "Agente desconhecido ou sem controle de cota.")
     backend.clear_quota()
     return {"ok": True, "agent": name}
+

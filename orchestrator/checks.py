@@ -10,6 +10,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
+import posixpath
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -91,11 +92,16 @@ class ChecksRunner:
 
     def _target_files(self, spec: CheckSpec, files: list[str]) -> list[str]:
         out = []
+        seen: set[str] = set()
         for f in sorted(set(files)):
             try:
-                rel = normalize_file(self.root, f)
+                key = normalize_file(self.root, f)  # trava: recusa caminhos fora do workspace
             except PathOutsideWorkspaceError:
                 continue
+            if key in seen:
+                continue
+            seen.add(key)
+            rel = posixpath.normpath(str(f).replace("\\", "/"))  # preserva maiúsculas/minúsculas originais
             if (self.root / rel).is_file() and any(fnmatch.fnmatch(Path(rel).name, g) for g in spec.file_globs):
                 out.append(rel)
         return out

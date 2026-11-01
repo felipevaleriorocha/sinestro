@@ -92,7 +92,7 @@ def agent_names(payload: Any) -> list[str]:
     names = []
     for a in _as_list(payload):
         if isinstance(a, dict):
-            n = a.get("name") or a.get("id")
+            n = a.get("id") or a.get("name")  # a sess?o usa o id (ex.: "plan"), n?o o nome de exibi??o
             if n:
                 names.append(str(n))
         elif isinstance(a, str):
@@ -372,6 +372,15 @@ class OpenCodeAdapter(AgentBackend):
             with self._lock:
                 self._active_sessions.pop(run_id, None)
                 self._cancelled.discard(run_id)
+        failure = next((m for m in _as_list(payload) if isinstance(m, dict) and m.get("outcome") == "failed"
+                        and (m.get("id") or "") not in before), None)
+        if failure:  # ex.: {"type": "idle", "outcome": "failed", "error": {"message": "Agent not found"}}
+            err = failure.get("error") or {}
+            msg = redact(err.get("message") if isinstance(err, dict) else str(err))
+            if looks_like_quota_error(msg):
+                self.mark_quota_exceeded(msg)
+                raise QuotaExceededError(f"DeepSeek sem cota: {msg[:300]}")
+            raise AgentResponseError(f"OpenCode falhou: {msg[:800]}")
         reply = extract_assistant_reply(payload, before)
         if reply["error"]:
             err_text = redact(json.dumps(reply["error"], ensure_ascii=False) if not isinstance(reply["error"], str) else reply["error"])

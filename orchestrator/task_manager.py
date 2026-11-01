@@ -6,7 +6,7 @@ from typing import Any
 
 from database.repository import Repository
 
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 
 
 class WF:
@@ -151,3 +151,4 @@ class TaskManager:
                 self.repo.update_subtask(s["id"], status=ST.PENDING, error=None)
                 n += 1
         return n
+

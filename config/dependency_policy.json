@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "parallel_execution": false,
+  "max_parallel_subtasks": 1,
+  "parallel_per_agent": 1,
+  "mcp_parallel_safe": false,
+  "rules": {
+    "uncertainty": "sequential",
+    "same_file": "shared",
+    "write_read_dependency": "shared",
+    "shared_contract": "shared",
+    "shared_mcp_resource": "shared"
+  }
+}

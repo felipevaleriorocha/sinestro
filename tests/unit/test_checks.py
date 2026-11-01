@@ -12,8 +12,11 @@ def fake_spec(**kw):
     return CheckSpec(id="fake", binary=sys.executable, args=[FAKE, "{files}"], enabled=True, **kw)
 
 
-def test_default_config_has_everything_disabled(workspace):
-    r = ChecksRunner(workspace, ROOT / "config" / "checks.json")
+def test_default_config_has_everything_disabled(workspace, tmp_path):
+    cfg = tmp_path / "checks.json"
+    cfg.write_text('{"checks": [{"id": "selene", "binary": "selene", "enabled": false}, '
+                   '{"id": "stylua", "binary": "stylua", "enabled": false}]}', encoding="utf-8")
+    r = ChecksRunner(workspace, cfg)
     st = r.status()
     assert st["checks"] and not st["any_active"]
     out = r.run(["src/shared/A.lua"])

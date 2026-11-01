@@ -5,83 +5,111 @@
 <title>Orquestrador Multiagente Roblox</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root { --bg:#0f1720; --panel:#16212d; --line:#253446; --text:#e6edf3; --muted:#8b9bb0; --ok:#3fb950; --warn:#d29922; --err:#f85149; --info:#58a6ff; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 Segoe UI, system-ui, sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; align-items:center; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); }
-  header h1 { font-size:17px; margin:0; font-weight:600; }
-  .banner { background:var(--warn); color:#000; padding:6px 20px; font-weight:600; display:none; }
-  main { display:grid; grid-template-columns: 380px 1fr; gap:14px; padding:14px 20px; }
-  section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:14px; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 10px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { color:var(--muted); font-weight:500; }
-  tr.sel { background:#1f2e3f; } tr.click { cursor:pointer; } tr.click:hover { background:#1b2836; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); white-space:nowrap; }
-  .s-ok, .s-completed, .s-approved, .s-passed { color:var(--ok); border-color:var(--ok); }
-  .s-warn, .s-completed_unreviewed, .s-needs_human, .s-paused, .s-awaiting_review, .s-checking, .s-no_active_checks, .s-blocked, .s-needs_attention, .s-interrupted, .s-completed_with_issues, .s-quota_exceeded, .s-contract_not_verified, .s-planned, .s-changes_requested, .s-skipped { color:var(--warn); border-color:var(--warn); }
-  .s-err, .s-failed, .s-rejected, .s-unavailable, .s-canceled { color:var(--err); border-color:var(--err); }
-  .s-run, .s-planning, .s-delegating, .s-reviewing, .s-running, .s-queued, .s-pending { color:var(--info); border-color:var(--info); }
-  .agent { border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:8px; }
-  .agent b { font-size:14px; } .muted { color:var(--muted); font-size:12px; }
-  textarea, select, input { width:100%; background:#0b121a; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
-  button { background:#238636; color:#fff; border:0; border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; }
-  button.sec { background:#30363d; } button.danger { background:#b62324; }
-  .row { display:flex; gap:8px; align-items:center; margin-top:8px; }
-  pre { white-space:pre-wrap; word-break:break-word; margin:0; font-size:12px; color:#c9d1d9; max-height:160px; overflow:auto; }
-  .tabs { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
-  .tabs button { background:#30363d; } .tabs button.on { background:#1f6feb; }
-  .lvl-error { color:var(--err); } .lvl-warning { color:var(--warn); }
-  #toast { position:fixed; bottom:16px; right:16px; background:#30363d; padding:8px 14px; border-radius:6px; display:none; }
+:root{--bg:#090e1a;--panel:#111827;--raised:#172033;--line:#243049;--text:#e8eef7;--muted:#8a99b0;--blue:#4c8dff;--green:#2fd67b;--warn:#e0a83a;--err:#f06b62;--mono:Cascadia Mono,Consolas,monospace}
+*{box-sizing:border-box} [hidden]{display:none!important}
+body{margin:0;min-height:100vh;font:14px/1.45 Segoe UI,system-ui,sans-serif;color:var(--text);background:radial-gradient(1100px 520px at 50% -10%,#15213d,transparent) fixed,var(--bg)}
+a{color:var(--blue);cursor:pointer;text-decoration:none} a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.mono{font:12px var(--mono)} .muted{color:var(--muted);font-size:12px}
+.banner{display:none;padding:6px 20px;font-weight:600;background:var(--warn);color:#111}
+header{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.brand{font-weight:600;flex:1} #nav{display:flex;gap:6px}
+#nav button,.tnav button{background:none;color:var(--muted)} #nav button.on{background:var(--raised);color:var(--text)}
+main{max-width:1000px;margin:0 auto;padding:18px 20px 40px} #tech{max-width:1400px}
+button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
+button.sec{background:#243049} button.danger{background:#b62324}
+.bd{background:#243049;border-radius:8px;padding:0 6px;font-size:11px} .bd.e{background:#b62324} .bd:empty{display:none}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;border:1px solid var(--line);white-space:nowrap}
+.s-ok,.s-completed,.s-approved,.s-passed{color:var(--green);border-color:var(--green)}
+.s-warn,.s-completed_unreviewed,.s-needs_human,.s-paused,.s-awaiting_review,.s-checking,.s-no_active_checks,.s-blocked,.s-needs_attention,.s-interrupted,.s-completed_with_issues,.s-quota_exceeded,.s-contract_not_verified,.s-planned,.s-changes_requested,.s-skipped{color:var(--warn);border-color:var(--warn)}
+.s-err,.s-failed,.s-rejected,.s-unavailable,.s-canceled{color:var(--err);border-color:var(--err)}
+.s-run,.s-planning,.s-delegating,.s-reviewing,.s-running,.s-queued,.s-pending{color:var(--blue);border-color:var(--blue)}
+/* Início */
+#idle{min-height:64vh;display:flex;flex-direction:column;justify-content:center;gap:24px}
+#idle h1{font:400 34px/1.2 Georgia,'Iowan Old Style',serif;text-align:center;margin:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:14px 16px;box-shadow:0 10px 34px rgba(0,0,0,.35)}
+.box:focus-within{border-color:var(--blue)}
+.box textarea{width:100%;background:none;border:0;outline:0;resize:none;color:var(--text);font:16px/1.5 inherit;font-family:inherit;max-height:240px}
+.bar2{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.seg{display:flex;background:var(--bg);border-radius:10px;padding:3px}
+.seg button{background:none;color:var(--muted);padding:5px 14px;border-radius:8px} .seg button.on{background:var(--raised);color:var(--text)}
+.send{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center} .send svg{width:18px;height:18px}
+#run{animation:fade .5s ease}
+@keyframes fade{from{opacity:0}}
+.tl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.goal{flex:1;min-width:220px;font-weight:600}
+.clip2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.alert{border:1px solid var(--warn);background:rgba(224,168,58,.08);border-radius:14px;padding:12px 16px;margin-top:14px;display:grid;gap:8px}
+.ar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;margin-top:18px}
+.ag{--c:var(--blue);display:grid;gap:14px;padding:22px;border-radius:22px;border:2px solid color-mix(in srgb,var(--c) 55%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 12%,#0d1528),#0b1222 70%);box-shadow:0 0 28px color-mix(in srgb,var(--c) 18%,transparent);opacity:0;transform:translateY(14px);transition:opacity .7s ease,transform .7s ease;transition-delay:calc(var(--i)*.18s)}
+.in .ag{opacity:1;transform:none}
+.ag.work{--c:var(--green)} .ag.blk{--c:var(--warn)}
+.ah{display:flex;align-items:center;gap:16px}
+.logo{width:64px;height:64px;flex:none;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);display:grid;place-items:center} .logo svg{width:38px;height:38px}
+.nm{font-size:26px;font-weight:700;flex:1}
+.sp{display:inline-flex;align-items:center;gap:8px;padding:4px 14px;border-radius:16px;border:1.5px solid var(--c);color:var(--c);font-weight:600;white-space:nowrap;background:color-mix(in srgb,var(--c) 10%,transparent)}
+.sp i{width:10px;height:10px;border-radius:50%;background:var(--c)} .work .sp i{animation:beat 1.6s infinite}
+.hr{height:1px;background:var(--line)}
+.al{font-size:13px;letter-spacing:.08em;font-weight:600;color:var(--muted);text-transform:uppercase}
+.act{display:flex;gap:16px;align-items:center;min-height:52px} .act>div{min-width:0}
+.ic{width:34px;height:34px;flex:none;color:var(--c,var(--muted))} .ic.spin{animation:spin 1s linear infinite}
+.at{font-size:19px;font-weight:600} .ad{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft{display:flex;gap:12px;align-items:center;color:var(--muted);white-space:nowrap} .ft .ic{width:20px;height:20px;color:var(--muted)}
+.pb{flex:1;height:9px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}
+.pb b{display:block;height:100%;border-radius:5px;background:var(--c)} .pb b.ind{animation:slide 1.8s ease-in-out infinite alternate}
+.approx{color:var(--warn);font-weight:700;cursor:help;margin-right:2px}
+.mini{margin-top:18px;width:100%;border:1px solid var(--line);border-radius:14px;background:var(--panel);border-collapse:separate;padding:4px 10px}
+.mini td{padding:8px 6px;vertical-align:middle} .mini .ic{width:22px;height:22px}
+.lk{margin-top:10px;padding:8px 14px;border:1px solid var(--warn);border-radius:10px;background:rgba(224,168,58,.08)} .lk.bad{border-color:var(--err);background:rgba(240,107,98,.1)}
+@keyframes beat{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--c) 25%,transparent)}}
+@keyframes slide{to{margin-left:60%}} @keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* Técnico */
+.tgrid{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;align-items:start}
+#tnav{display:grid;gap:3px;position:sticky;top:60px} .tnav button{display:flex;justify-content:space-between;text-align:left} #tnav button.on{background:var(--raised);color:var(--text)}
+#tnav .grp{color:var(--muted);font-size:12px;margin:10px 6px 2px}
+.tbar{display:flex;gap:10px;margin-bottom:14px} #exsel{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:200px}
+.subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.sc,.box2{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;align-content:start;margin-bottom:8px} .sc.hum{border-color:var(--warn)}
+.sh{display:flex;justify-content:space-between;gap:8px} .flow{font-weight:600} .chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:0 7px;font-size:12px;color:var(--muted)} button.chip{cursor:pointer} button.chip.on{border-color:var(--blue);color:var(--blue)}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono);color:#c3cdd8;max-height:160px;overflow:auto}
+.lr{border-bottom:1px solid var(--line);padding:4px 2px} .lr summary{display:flex;gap:10px;align-items:baseline;cursor:pointer;font-size:13px}
+.lr .clip{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)} .tag{color:var(--blue);font-size:12px}
+.lvl-error summary b,.lvl-error .clip,.lvl-error{color:var(--err)} .lvl-warning .clip,.lvl-warning{color:var(--warn)}
+#toast{position:fixed;bottom:16px;right:16px;background:#243049;padding:8px 14px;border-radius:8px;display:none;z-index:9}
+@media (max-width:800px){.tgrid{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="banner" id="checksBanner">Nenhuma checagem automática ativa: as revisões dependem só dos modelos. Veja config/checks.json e .\scripts\check_integrations.ps1.</div>
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
 <header>
-  <h1>Orquestrador Multiagente Roblox <span class="muted" id="ver"></span></h1>
-  <span id="health" class="muted">carregando…</span>
-  <span style="flex:1"></span>
-  <a href="/docs" style="color:var(--info)">API /docs</a>
+  <span class="brand">Orquestrador Roblox <span class="muted" id="ver"></span></span>
+  <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
+  <span id="health" class="muted"></span>
 </header>
-<main>
-  <div>
-    <section>
-      <h2>Agentes (A2A)</h2>
-      <div id="agents"></div>
-      <div class="row"><button class="sec" onclick="discover()">Descobrir Agent Cards</button><button class="sec" onclick="checkAll(true)">Verificar (sem tokens)</button></div>
-    </section>
-    <section>
-      <h2>Nova solicitação</h2>
-      <textarea id="goal" rows="4" placeholder="Descreva a funcionalidade…"></textarea>
-      <div class="row">
-        <select id="mode" style="width:auto"><option value="plan_only">Somente planejar</option><option value="full">Fluxo completo</option></select>
-        <button onclick="createTask()">Enviar</button>
+<main id="home">
+  <section id="idle">
+    <h1>O que vamos construir hoje?</h1>
+    <div class="box">
+      <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
+      <div class="bar2">
+        <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
+        <button class="send" onclick="createTask()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </div>
-    </section>
-    <section>
-      <h2>MCP (Roblox Studio)</h2>
-      <div id="mcp" class="muted">—</div>
-    </section>
-  </div>
-  <div>
-    <section>
-      <h2>Execuções</h2>
-      <table><thead><tr><th>Criada</th><th>Solicitação</th><th>Modo</th><th>Estado</th></tr></thead><tbody id="wfs"></tbody></table>
-    </section>
-    <section id="detail" style="display:none">
-      <div class="row" style="margin:0 0 10px"><h2 style="margin:0;flex:1" id="dTitle"></h2>
-        <button class="danger" id="btnCancel" onclick="act('cancel')">Cancelar</button>
-        <button class="sec" id="btnResume" onclick="act('resume')">Retomar</button></div>
-      <div class="tabs" id="tabs"></div>
-      <div id="tabBody"></div>
-    </section>
-    <section>
-      <div class="tabs" id="gtabs"></div>
-      <div id="gBody"></div>
-    </section>
-  </div>
+    </div>
+  </section>
+  <section id="run" hidden>
+    <div class="tl" id="tl"></div><div id="need"></div><div class="cards" id="cards"></div><div id="sel"></div>
+  </section>
+</main>
+<main id="tech" hidden>
+  <div class="tbar"><select id="exsel" onchange="if(this.value)select(this.value)"></select></div>
+  <div class="tgrid"><nav id="tnav" class="tnav"></nav><div class="card" id="tbody"></div></div>
 </main>
 <div id="toast"></div>
 <script>
@@ -101,103 +129,206 @@ function finalReviewBadge(w){
 }
 /*FR-BADGE-END*/
 const t = iso => iso ? new Date(iso).toLocaleString('pt-BR') : '';
-let selected = null, tab = 'subtasks', gtab = 'errors';
-function toast(m){ const e=$('#toast'); e.textContent=m; e.style.display='block'; setTimeout(()=>e.style.display='none',3500); }
-async function api(path, opt){ const r = await fetch(path, opt); if(!r.ok){ let d=''; try{d=(await r.json()).detail}catch{}; throw new Error(typeof d==='string'?d:JSON.stringify(d)||r.status);} return r.json(); }
+const ACTIVE=['queued','planning','delegating','reviewing'], CONF=/conflict|denied|blocked|busy|wait/i;
+const RESUME=['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused','completed_unreviewed'];
+const TS={subtasks:'Subtarefas',messages:'Conversas A2A',files:'Arquivos',plan:'Plano e métricas',events:'Histórico',errors:'Erros',decisions:'Decisões técnicas',locks:'Reservas de arquivos',runs:'Chamadas aos modelos',allmsg:'Todas as conversas',agents:'Agentes e modelos',mcp:'MCP'};
+let selected=null, hold=false, vw='home', tsec='subtasks', flt='todos', actApi=true, mode='plan_only', SHOWRUN=false;
+let WF=[], AG=[], D=null, ACT=[], LK=[], LKH=[], ERR=[], DEC=[], MCPD={}, X={};
 
+/* ícones inline (funcionam offline) */
+const P={plan:'<circle cx="12" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M12 7.5V12m0 0H6v4.5M12 12h6v4.5"/>',code:'<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',review:'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',final:'<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',idle:'<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',ok:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 9.5"/>',bad:'<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',warn:'<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',run:'<path d="M21 12a9 9 0 1 1-6.2-8.6"/>'};
+const svg=(k,c)=>`<svg class="ic ${c||''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[k]}</svg>`;
+const LOGO={
+  gemini:'<svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>',
+  deepseek:'<svg viewBox="0 0 48 48"><path fill="#4D6BFE" d="M4 28C4 18 12 12 22 12c6 0 11 2.6 14 7l5-9c1.5 4 1 8-1 11.5 1.8-.3 3.6-1.2 5-2.5-.4 4.4-3.2 7.6-7.5 8.8C35.5 36 29 38.5 21 38.5 11 38.5 4 34.5 4 28z"/><circle cx="14" cy="24" r="2.2" fill="#fff"/><path d="M6 29.500q7 4 15 1" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8"/></svg>'};
+const short = n => String(n ?? '').split(/\s+[—–-]\s+/)[0];
+const dn = n => { const x = AG.find(y => y.name.toLowerCase()===String(n).toLowerCase()); return x ? short(x.display_name) : (n||'—'); };
+const logo = a => LOGO[String(a.name).toLowerCase()] || `<b style="font-size:26px">${esc(short(a.display_name)[0])}</b>`;
+
+function ago(iso){ const s=Math.max(0,Math.floor((Date.now()-new Date(iso))/1000)), h=Math.floor(s/3600), m=Math.floor(s%3600/60); return 'Há '+(h?`${h} h ${m} min`:m?`${m} min ${s%60}s`:`${s}s`); }
+const appx = src => src==='inferido' ? '<span class="approx" title="Inferido do estado da tarefa (sem /activity): pode não ser exato.">~</span>' : '';
+const liveAgo = (iso,src) => iso ? `${appx(src)}<span data-since="${esc(iso)}"></span>` : '—';
+function tick(){ document.querySelectorAll('[data-since]').forEach(e => e.textContent = ago(e.dataset.since)); }
+setInterval(tick, 1000);
+// Renderização sem perder rolagem/seleção (FRONTEND.md, seção 2).
+function setHTML(el, html, force){
+  if(!el) return;
+  if(!force){ if(el._h===html) return; const s=getSelection(); if(s && !s.isCollapsed && el.contains(s.anchorNode)) return; if(el.querySelector('details[open]')) return; }
+  const sy=scrollY, st=el.scrollTop, ps=[...el.querySelectorAll('pre')].map(p=>p.scrollTop);
+  el.innerHTML=html; el._h=html; el.scrollTop=st;
+  el.querySelectorAll('pre').forEach((p,i)=>{ p.scrollTop=ps[i]||0; });
+  scrollTo(0,sy); tick();
+}
+function toast(m){ const e=$('#toast'); e.textContent=m; e.style.display='block'; setTimeout(()=>e.style.display='none',3500); }
+async function api(path, opt){ const r = await fetch(path, opt); if(!r.ok){ let d=''; try{d=(await r.json()).detail}catch{}; throw new Error(typeof d==='string'?d:(d&&d.detail)||JSON.stringify(d)||r.status);} return r.json(); }
+const lastTs = d => (d.events||[]).map(e=>e.created_at).sort().pop() || d.created_at;
+
+/* ---------- Atividade: um único ponto para "quem está fazendo o quê" ---------- */
+// Formato: {agent, model, skill, subtask_id, started_at, source}; source: "inferido" (deduzido) ou "activity" (GET /activity).
+function deriveActivity(d, agents){
+  const ss=d.subtasks||[], m=n=>{ const a=(agents||[]).find(x=>x.name===n); return a?a.model:null; };
+  const run=ss.find(s=>s.status==='running'), chk=ss.find(s=>s.status==='checking'), rev=ss.find(s=>['reviewing','awaiting_review'].includes(s.status));
+  let agent=null, skill=null, sid=null;
+  if(d.status==='planning'){ agent=d.planned_by||'gemini'; skill='planejamento'; }
+  else if(run){ agent=run.assigned_to||run.agent; skill='implementação'; sid=run.id; }
+  else if(chk){ agent='checagens'; skill='checagem automática'; sid=chk.id; }
+  else if(rev){ agent=rev.reviewer; skill='revisão cruzada'; sid=rev.id; }
+  else if(d.status==='reviewing'){ agent=(d.final_review&&d.final_review.reviewer)||null; skill='revisão final'; }
+  if(!agent) return null;
+  const sub=run||chk||rev||{};
+  return {agent, model: agent==='checagens'?null:m(agent), skill, subtask_id:sid, detail:sub.title||null, progress:ss.length?ss.filter(s=>s.status==='approved').length/ss.length:null, started_at:lastTs(d), source:'inferido'};
+}
+async function loadActivity(){
+  if(actApi){ try{ const r=await api('/activity'); const l=Array.isArray(r)?r:(r.items||[r]); ACT=l.filter(x=>x&&x.agent).map(x=>({...x,source:'activity'})); return afterAct(); }
+    catch(e){ if(/not found|404/i.test(e.message)) actApi=false; } }
+  const out=[];
+  for(const w of WF.filter(w=>ACTIVE.includes(w.status)).slice(0,3)){ try{ const d=await api(`/tasks/${w.id}`); const a=deriveActivity(d,AG); if(a){ a.workflow_id=w.id; out.push(a); } }catch(e){} }
+  ACT=out; afterAct();
+}
+function afterAct(){ if(SHOWRUN) renderRun(); if(vw==='tech'&&tsec==='agents') renderTech(); }
+
+/* ---------- Início ---------- */
+const ACTION={'planejamento':['Analisando o plano da tarefa','Dividindo o pedido em subtarefas…','plan'],'implementação':['Implementando mudanças','Alterando arquivos do projeto…','code'],'revisão cruzada':['Revisando o trabalho','Conferindo critérios e casos de borda…','review'],'revisão final':['Revisão final','Verificando a integração entre as subtarefas…','final']};
+function agCard(a,i){
+  const cur=ACT.find(x=>String(x.agent).toLowerCase()===a.name.toLowerCase()), blk=!a.accepting_work&&!cur;
+  const [ti,de,ic]=cur?(ACTION[cur.skill]||[cur.skill||'Trabalhando','','code']):['Sem ação no momento','Aguardando a próxima etapa.','idle'];
+  const pr=cur&&typeof cur.progress==='number'?Math.round(cur.progress*100):null;
+  return `<div class="ag ${cur?'work':blk?'blk':''}" style="--i:${i}"><div class="ah"><div class="logo">${logo(a)}</div><div class="nm">${esc(short(a.display_name))}</div><span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span></div>
+    <div class="hr"></div><div class="al">Ação atual</div>
+    <div class="act">${svg(ic)}<div><div class="at">${esc(ti)}</div><div class="ad">${esc(cur&&cur.detail?cur.detail:de)}</div></div></div>
+    <div class="ft">${svg('clock')}<span>${cur?liveAgo(cur.started_at,cur.source):'—'}</span><div class="pb" title="${pr===null?'Sem progresso mensurável nesta etapa':'Subtarefas aprovadas da execução'}"><b class="${cur&&pr===null?'ind':''}" style="width:${cur?(pr===null?40:pr):0}%"></b></div></div></div>`; }
+function seleneState(){
+  const cs=((D&&D.subtasks)||[]).map(s=>s.checks&&s.checks.status).filter(Boolean);
+  if(ACT.some(x=>x.agent==='checagens')) return ['run','Rodando…','spin'];
+  if(cs.some(c=>/fail|unavailable|rejected/i.test(c))) return ['bad','Falhou',''];
+  if(cs.some(c=>/attention|not_verified/i.test(c))) return ['warn','Atenção',''];
+  if(cs.includes('no_active_checks')) return ['warn','Sem checagens ativas',''];
+  if(cs.length&&cs.every(c=>c==='passed')) return ['ok','Passou',''];
+  return ['idle','Em espera',''];
+}
+function renderRun(force){
+  const d=D; if(!d) return;
+  const can=ACTIVE.includes(d.status), res=RESUME.includes(d.status)&&!d.running, a=ACT.find(x=>x.agent!=='checagens'&&(!x.workflow_id||x.workflow_id===d.id));
+  document.title=(a&&can?`● ${dn(a.agent)} — `:'')+'Orquestrador Multiagente Roblox';
+  setHTML($('#tl'), `<div class="goal clip2">${esc(d.goal)}</div>${pill(d.status)} ${finalReviewBadge(d)}${can?'<button class="danger" onclick="act(\'cancel\')">Cancelar</button>':''}${res?'<button class="sec" onclick="act(\'resume\')">Retomar</button>':''}<button class="sec" onclick="novo()">Nova solicitação</button>`, force);
+  const hs=(d.subtasks||[]).filter(s=>s.status==='needs_human'), fr=d.status==='needs_human'&&['changes_requested','rejected','unverified','invalidated'].includes(d.final_review_state);
+  setHTML($('#need'), (hs.length||fr)?`<div class="alert"><b>Precisa da sua decisão</b>${hs.map(s=>`<div class="ar"><span>${esc(s.plan_id)} · ${esc(s.title)}</span><span class="row" style="margin:0">${['approve','retry','reassign','reject'].map(x=>`<button class="sec" onclick="decide('${esc(s.id)}','${x}')">${x}</button>`).join('')}</span></div>`).join('')}${fr?`<div class="ar"><span>Revisão final: ${esc(d.final_review_state)}</span><span class="row" style="margin:0"><button class="sec" onclick="finalDecide('accept')">aceitar mesmo assim</button><button class="danger" onclick="finalDecide('reject')">rejeitar</button></span></div>`:''}<a onclick="tsec='subtasks';view('tech')">ver detalhes dos dois lados</a></div>`:'', force);
+  setHTML($('#cards'), AG.map(agCard).join(''), force);
+  const [k,txt,sp]=seleneState(), now=Date.now(), conf=LKH.filter(x=>CONF.test(x.action||'')&&now-new Date(x.created_at)<9e5);
+  setHTML($('#sel'), `<table class="mini"><tr><td style="width:34px;color:var(--${k==='ok'?'green':k==='bad'?'err':k==='warn'?'warn':k==='run'?'blue':'muted'})">${svg(k==='idle'?'idle':k,sp)}</td><td><b>Selene</b></td><td class="muted" style="text-align:right">${txt}</td></tr></table>`
+    +(conf.length?`<div class="lk bad"><b>Conflito de reserva:</b> ${conf.slice(0,3).map(x=>esc(x.resource)).join(', ')} <a onclick="tsec='locks';view('tech')">ver</a></div>`:'')
+    +(LK.length?`<div class="lk">${LK.length} arquivo(s) reservado(s) agora <a onclick="tsec='locks';view('tech')">ver reservas</a></div>`:''), force);
+}
+function renderHome(force){
+  const r=!!(selected&&D), c=$('#cards');
+  if(r!==SHOWRUN){ SHOWRUN=r; $('#idle').hidden=r; $('#run').hidden=!r; c.classList.remove('in'); if(r){ renderRun(true); setTimeout(()=>c.classList.add('in'),80); } else $('#goal').focus(); return; }
+  if(r) renderRun(force);
+}
+function setMode(b){ mode=b.dataset.m; document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b)); }
+async function createTask(){ const goal = $('#goal').value.trim(); if(goal.length<8) return toast('Descreva melhor a solicitação.');
+  try{ const r = await api('/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({goal, mode})});
+  selected=r.id; hold=false; D={id:r.id, goal, status:'queued', subtasks:[], events:[]}; $('#goal').value=''; $('#goal').style.height=''; renderHome(true); refresh(); }catch(e){ toast(e.message); } }
+function novo(){ selected=null; D=null; hold=true; renderHome(true); }
+$('#goal').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){ e.preventDefault(); createTask(); } });
+$('#goal').addEventListener('input', e => { e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px'; });
+function view(v){ vw=v; $('#home').hidden=v!=='home'; $('#tech').hidden=v!=='tech'; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); if(v==='tech') loadTech(true); else renderHome(true); }
+
+/* ---------- Dados ---------- */
 async function loadHealth(){ try{ const h = await api('/health'); $('#mockBanner').style.display = h.mock_mode?'block':'none'; $('#ver').textContent = 'v'+h.version;
   $('#health').innerHTML = `workspace ${h.project_root_exists?pill('ok'):pill('failed')} git ${h.git_repo?pill('ok'):pill('blocked')}`; }catch(e){ $('#health').textContent='API indisponível'; }
   try{ const c = await api('/checks/status'); $('#checksBanner').style.display = c.any_active?'none':'block'; }catch(e){} }
-
-async function loadAgents(){ try{ const list = await api('/agents'); $('#agents').innerHTML = list.map(a => {
-  const h = a.health || {}; return `<div class="agent"><b>${esc(a.display_name)}</b> ${pill(h.status||'unknown')} ${a.accepting_work?'':pill('blocked')}
-  <div class="muted">${esc(a.role)} · ${esc(a.model)} · ${esc(a.backend)}</div>
-  <div class="muted">skills: ${a.skills.map(esc).join(', ')}</div>
-  <div class="muted">card: <a style="color:var(--info)" href="${esc(a.agent_card_url)}" target="_blank">agent-card.json</a> ${a.a2a_card_reachable===null?'':(a.a2a_card_reachable?pill('ok'):pill('failed'))}</div>
-  ${a.blocked_reason?`<div class="lvl-warning muted">${esc(a.blocked_reason)}</div>`:''}
-  ${h.detail?`<div class="muted">${esc(h.detail)}</div>`:''}
-  <div class="row"><button class="sec" onclick="check('${esc(a.name)}', true)">Verificar</button></div></div>`; }).join(''); }catch(e){} }
+async function loadAgents(){ try{ AG = await api('/agents'); }catch(e){ return; } await loadActivity(); }
 async function check(name, deep){ try{ await api(`/agents/${name}/check?deep=${deep}`, {method:'POST'}); }catch(e){ toast(e.message); } loadAgents(); }
 async function checkAll(deep){ for (const n of ['gemini','deepseek']) await check(n, deep); }
 async function discover(){ try{ const r = await api('/a2a/discovery'); toast(Object.entries(r).map(([k,v])=>`${k}: ${v.reachable?'ok':'falhou'}`).join(' · ')); }catch(e){ toast(e.message);} loadAgents(); }
+async function loadMcp(){ try{ MCPD = await api('/mcp/status'); if(vw==='tech'&&tsec==='mcp') renderTech(); }catch(e){} }
+async function loadWorkflows(force){ try{ WF = await api('/tasks?limit=30'); }catch(e){ return; }
+  if(!selected && !hold){ const a=WF.find(w=>ACTIVE.includes(w.status)); if(a) selected=a.id; }
+  if(vw==='tech') renderExSel(); }
+function select(id){ selected=id; hold=false; loadWorkflows(true); loadDetail(true); }
+async function act(kind){ try{ await api(`/tasks/${selected}/${kind}`, {method:'POST'}); toast(kind==='cancel'?'Cancelamento solicitado.':'Retomando.'); }catch(e){ toast(e.message);} loadDetail(true); }
+async function loadDetail(force){
+  if(!selected){ renderHome(force); return; }
+  const id=selected; let d; try{ d = await api(`/tasks/${id}`); }catch(e){ return; }
+  if(selected!==id) return; D=d; renderHome(force); if(vw==='tech') renderTech(force);
+}
+async function finalDecide(action){ const note = prompt(`Revisão final: "${action}" — nota (opcional):`, ''); if (note===null) return;
+  try{ await api(`/tasks/${selected}/final-review/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
+  toast('Decisão registrada.'); }catch(e){ toast(e.message); } loadDetail(true); loadWorkflows(true); }
+async function decide(sid, action){ const note = prompt(`Decisão "${action}" — nota para os agentes (opcional):`, ''); if (note===null) return;
+  try{ await api(`/tasks/${selected}/subtasks/${sid}/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
+  toast('Decisão registrada. Clique em Retomar quando terminar as decisões.'); }catch(e){ toast(e.message); } loadDetail(true); }
+async function loadGlobal(force){
+  const g = p => api(p).catch(() => null);
+  const [e,d,l,h] = await Promise.all([g('/errors?limit=50'), g('/decisions?limit=50'), g('/locks'), g('/locks/history?limit=30')]);
+  if(e) ERR=(e.events||[]).sort((a,b)=>b.id-a.id); if(d) DEC=d; if(l) LK=l; if(h) LKH=h;
+  $('#ecount').textContent=ERR.length||''; if(SHOWRUN) renderRun(force); if(vw==='tech') renderTech(force);
+}
 
-async function loadMcp(){ try{ const m = await api('/mcp/status'); const ids = Object.keys(m);
-  $('#mcp').innerHTML = ids.length ? ids.map(id => `<div><b>${esc(id)}</b> ${pill(m[id].server_state)}<div class="muted">${Object.entries(m[id].agents).map(([a,v])=>`${esc(a)}: ${esc(v.state)} (${esc(v.role)})`).join(' · ')}</div></div>`).join('') : 'Nenhum servidor MCP configurado (config/mcp_servers.json).'; }catch(e){} }
-
-async function createTask(){ const goal = $('#goal').value.trim(); if(goal.length<8) return toast('Descreva melhor a solicitação.');
-  try{ const r = await api('/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({goal, mode: $('#mode').value})});
-  selected = r.id; $('#goal').value=''; toast('Solicitação enviada.'); refresh(); }catch(e){ toast(e.message); } }
-
-async function loadWorkflows(){ try{ const list = await api('/tasks?limit=30'); $('#wfs').innerHTML = list.map(w =>
-  `<tr class="click ${w.id===selected?'sel':''}" onclick="select('${w.id}')"><td class="muted">${t(w.created_at)}</td><td>${esc(w.goal.slice(0,110))}</td><td>${esc(w.mode||'full')}</td><td>${pill(w.status)} ${finalReviewBadge(w)}</td></tr>`).join(''); }catch(e){} }
-function select(id){ selected = id; loadWorkflows(); loadDetail(); }
-
-async function act(kind){ try{ await api(`/tasks/${selected}/${kind}`, {method:'POST'}); toast(kind==='cancel'?'Cancelamento solicitado.':'Retomando.'); }catch(e){ toast(e.message);} loadDetail(); }
-
+/* ---------- Técnico ---------- */
 function finalReviewPanel(d){
   const fr = d.final_review; if (!fr || !d.final_review_state || d.final_review_state==='not_reached') return '';
   const own = (fr.self_authored_subtasks||[]);
   const cov = (fr.coverage||[]).map(c => `${esc(c.id)}: ${esc(c.coverage)}`).join(' · ');
   const needs = d.status==='needs_human' && ['changes_requested','rejected','unverified','invalidated'].includes(d.final_review_state);
-  return `<div class="agent"><b>Revisão final</b> ${pill(d.final_review_state)} ${finalReviewBadge(d)}
+  return `<div class="box2"><div><b>Revisão final</b> ${pill(d.final_review_state)} ${finalReviewBadge(d)}</div>
     <div class="muted">revisor: ${esc(fr.reviewer||'—')} · tentativa ${esc(fr.attempt||'—')} · snapshot ${esc(fr.snapshot_hash||'—')}${fr.workspace_changed_since_last_attempt?' · <span class="lvl-warning">arquivos mudaram desde a tentativa anterior</span>':''}</div>
     ${own.length?`<div class="lvl-warning muted">Implementadas pelo próprio revisor (cobertura só por revisão cruzada): ${own.map(esc).join(', ')}</div>`:''}
     ${cov?`<div class="muted">cobertura: ${cov}</div>`:''}
     ${fr.detail?`<pre>${esc(fr.detail)}</pre>`:''}
     ${fr.escalation?`<details><summary class="muted">parecer</summary><pre>${esc(JSON.stringify(fr.escalation,null,2))}</pre></details>`:''}
-    ${needs?`<div class="row"><button class="sec" onclick="finalDecide('accept')">aceitar mesmo assim</button><button class="danger" onclick="finalDecide('reject')">rejeitar</button><span class="muted">ou Retomar para nova revisão final</span></div>`:''}
-  </div>`; }
-async function finalDecide(action){ const note = prompt(`Revisão final: "${action}" — nota (opcional):`, ''); if (note===null) return;
-  try{ await api(`/tasks/${selected}/final-review/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
-  toast('Decisão registrada.'); }catch(e){ toast(e.message); } loadDetail(); loadWorkflows(); }
+    ${needs?`<div class="row"><button class="sec" onclick="finalDecide('accept')">aceitar mesmo assim</button><button class="danger" onclick="finalDecide('reject')">rejeitar</button><span class="muted">ou Retomar para nova revisão final</span></div>`:''}</div>`; }
+const subCard = s => { const hum=s.status==='needs_human', txt=s.error||(s.review&&s.review.summary)||(s.result&&s.result.summary)||'', ck=s.checks&&s.checks.status;
+  return `<div class="sc ${hum?'hum':''}"><div class="sh"><b>${esc(s.plan_id)} · ${esc(s.title)}</b>${pill(s.status)}</div>
+    <div class="flow">${esc(dn(s.assigned_to||s.agent))} → ${esc(s.reviewer?dn(s.reviewer):'sem revisor')}</div><div class="muted">${esc(s.assignment_reason||'')}</div>
+    <div class="chips">${s.execution_group?`<span class="chip">grupo ${esc(s.execution_group)}</span>`:''}${s.dependency_class?`<span class="pill s-${s.dependency_class==='PARALLEL'?'run':s.dependency_class==='SHARED'?'warn':'blocked'}">${esc(s.dependency_class)}</span>`:''}<span class="chip">revisões ${s.review_cycles}/2</span><span class="chip">correções ${s.check_fix_attempts??0}</span><span class="chip">tentativas ${s.impl_attempts??0}</span>${ck?pill(ck):'<span class="chip">sem checagem</span>'}</div>
+    <div class="muted mono">${esc((s.files||[]).join(', '))}</div>${txt?`<pre style="max-height:90px">${esc(txt)}</pre>`:''}
+    ${s.escalation?`<details><summary class="muted">resumo dos dois lados</summary><pre>${esc(JSON.stringify(s.escalation,null,2))}</pre></details>`:''}
+    ${hum?`<div class="row">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${esc(s.id)}','${a}')">${a}</button>`).join('')}</div>`:''}</div>`; };
+const row = (tm,who,tag,body,cls) => `<details class="lr ${cls||''}"><summary><span class="muted">${t(tm)}</span><b>${esc(who)}</b><span class="tag">${esc(tag)}</span><span class="clip">${esc(String(body||'').slice(0,140))}</span></summary><pre>${esc(body)}</pre></details>`;
+function renderExSel(){ const el=$('#exsel'); if(document.activeElement===el) return;
+  const h=(selected?'':'<option value="">Selecione uma execução…</option>')+WF.map(w=>`<option value="${esc(w.id)}" ${w.id===selected?'selected':''}>${esc(t(w.created_at))} · ${esc(w.goal.slice(0,70))} · ${esc(w.status)}</option>`).join('');
+  if(el._h!==h){ el.innerHTML=h; el._h=h; } }
+async function loadTech(force){
+  const g = p => api(p).catch(() => null);
+  if(tsec==='messages'&&selected) X.m=await g(`/tasks/${selected}/messages`);
+  if(tsec==='files'&&selected) X.f=await g(`/files/changes?workflow_id=${selected}`);
+  if(tsec==='runs') X.r=await g('/runs?limit=50');
+  if(tsec==='allmsg') X.a=await g('/messages?limit=60');
+  renderTech(force);
+}
+function renderTech(force){
+  if(vw!=='tech') return;
+  const d=D, cnt={errors:ERR.length, decisions:DEC.length, locks:LK.length}, keys=Object.keys(TS);
+  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';loadTech(true)">${TS[k]}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
+  setHTML($('#tnav'), '<div class="grp">Execução selecionada</div>'+keys.slice(0,4).map(nb).join('')+'<div class="grp">Geral</div>'+keys.slice(4).map(nb).join(''), true);
+  renderExSel();
+  const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none='<span class="muted">Nada para exibir.</span>';
+  let h='';
+  if(['subtasks','plan'].includes(tsec)&&!d) h='<span class="muted">Selecione uma execução.</span>';
+  else if(tsec==='subtasks') h = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:8px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') + `<div class="subs">${(d.subtasks||[]).map(subCard).join('')||'<span class="muted">Sem subtarefas ainda.</span>'}</div>`;
+  else if(tsec==='plan') h=`<pre style="max-height:600px">${esc(JSON.stringify({dependency_analysis:d.dependency_analysis, stages:d.stages, metrics:d.metrics, plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
+  else if(tsec==='messages') h=(X.m||[]).map(x=>row(x.created_at,`${x.sender} → ${x.recipient}`,`${x.skill||''} ${x.a2a_state||''}`,x.summary)).join('')||none;
+  else if(tsec==='files') h=(X.f||[]).map(c=>`<div class="lr"><b class="mono">${esc(c.path)}</b> <span class="muted">${esc(c.change_type)} · ${esc(c.agent)} · ${esc(c.source)}</span> ${c.within_reservation?pill('ok'):'<span class="pill s-err">fora da reserva</span>'}</div>`).join('')||'<span class="muted">Nenhuma alteração registrada.</span>';
+  else if(tsec==='events'||tsec==='errors'){
+    const src=tsec==='events'?(d?d.events||[]:[]):ERR, fl=[['todos','Todos'],['error','Erros'],['warning','Avisos'],...AG.map(a=>[a.name,short(a.display_name)])];
+    h=`<div class="chips" style="margin-bottom:8px">${fl.map(([k,v])=>`<button class="chip ${k===flt?'on':''}" onclick="flt='${esc(k)}';renderTech(true)">${esc(v)}</button>`).join('')}</div>`+(src.filter(pass).sort(byTime).slice(0,120).map(e=>row(e.created_at,e.agent,e.event,e.content,'lvl-'+esc(e.level))).join('')||none); }
+  else if(tsec==='decisions') h=DEC.map(x=>row(x.created_at,x.author,`#${x.id} ${x.status}`,`${x.title}: ${x.decision}`)).join('')||none;
+  else if(tsec==='locks') h='<div class="muted">Ativas</div>'+(LK.map(x=>`<div class="lr"><b class="mono">${esc(x.resource)}</b> <span class="muted">dono ${esc(x.owner)} · subtarefa ${esc(x.subtask_id)} · expira ${t(x.expires_at)}</span></div>`).join('')||'<div class="muted">nenhuma</div>')+'<div class="muted" style="margin-top:10px">Histórico</div>'+LKH.map(x=>row(x.created_at,x.owner,x.action,x.resource,CONF.test(x.action||'')?'lvl-error':'')).join('');
+  else if(tsec==='runs') h=(X.r||[]).map(x=>row(x.created_at,x.agent,`${x.skill||''} · ${x.status} · ${x.duration_seconds??'?'}s`,x.error||(x.usage?JSON.stringify(x.usage):''),x.error?'lvl-error':'')).join('')||none;
+  else if(tsec==='allmsg') h=(X.a||[]).map(x=>row(x.created_at,`${x.sender} → ${x.recipient}`,`${x.skill||''} ${x.a2a_state||''}`,x.summary)).join('')||none;
+  else if(tsec==='agents') h=`<div class="row"><button class="sec" onclick="discover()">Descobrir Agent Cards</button><button class="sec" onclick="checkAll(true)">Verificar (sem tokens)</button></div>`+AG.map(a=>{ const hh=a.health||{}, cur=ACT.find(x=>String(x.agent).toLowerCase()===a.name.toLowerCase());
+    return `<div class="box2"><div><b>${esc(a.display_name)}</b> ${pill(hh.status||'unknown')} ${a.accepting_work?'':pill('blocked')}</div><div class="muted">função: ${esc(a.role)} · backend: ${esc(a.backend)}</div>
+      <div>modelo configurado: <span class="mono">${esc(a.model)}</span>${cur&&cur.model?` · em uso agora: <span class="mono">${appx(cur.source)}${esc(cur.model)}</span>`:''}</div>
+      <div class="muted">skills: ${(a.skills||[]).map(esc).join(', ')}</div>${a.blocked_reason?`<div class="lvl-warning muted">${esc(a.blocked_reason)}</div>`:''}${hh.detail?`<div class="muted">${esc(hh.detail)}</div>`:''}
+      <div class="row" style="margin:0"><button class="sec" onclick="check('${esc(a.name)}', true)">Verificar</button><a href="${esc(a.agent_card_url)}" target="_blank">agent-card.json</a> ${a.a2a_card_reachable===null?'':(a.a2a_card_reachable?pill('ok'):pill('failed'))}</div></div>`; }).join('');
+  else if(tsec==='mcp'){ const ids=Object.keys(MCPD); h=ids.length?ids.map(id=>`<div class="box2"><b>${esc(id)}</b> ${pill(MCPD[id].server_state)}<div class="muted">${Object.entries(MCPD[id].agents).map(([a,v])=>`${esc(a)}: ${esc(v.state)} (${esc(v.role)})`).join(' · ')}</div></div>`).join(''):'<span class="muted">Nenhum servidor MCP configurado (config/mcp_servers.json).</span>'; }
+  setHTML($('#tbody'), h, force);
+}
 
-async function decide(sid, action){ const note = prompt(`Decisão "${action}" — nota para os agentes (opcional):`, ''); if (note===null) return;
-  try{ await api(`/tasks/${selected}/subtasks/${sid}/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
-  toast('Decisão registrada. Clique em Retomar quando terminar as decisões.'); }catch(e){ toast(e.message); } loadDetail(); }
-
-const TABS = {subtasks:'Subtarefas', messages:'Conversas A2A', events:'Histórico', files:'Arquivos', plan:'Plano/Métricas/Resultado'};
-async function loadDetail(){ if(!selected) return; $('#detail').style.display='block';
-  let d; try{ d = await api(`/tasks/${selected}`); }catch(e){ return; }
-  $('#dTitle').innerHTML = `${esc(d.goal.slice(0,90))} ${pill(d.status)} ${finalReviewBadge(d)}`;
-  $('#btnCancel').style.display = ['queued','planning','delegating','reviewing'].includes(d.status)?'':'none';
-  $('#btnResume').style.display = ['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused','completed_unreviewed'].includes(d.status)&&!d.running?'':'none';
-  $('#tabs').innerHTML = Object.entries(TABS).map(([k,v]) => `<button class="${k===tab?'on':''}" onclick="tab='${k}';loadDetail()">${v}</button>`).join('');
-  let html = '';
-  if (tab==='subtasks') html = finalReviewPanel(d) + (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:6px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') +
-    `<table><tr><th>#</th><th>Subtarefa</th><th>Implementou</th><th>Revisou</th><th>Motivo da atribuição</th><th>Ajustes / checagem / tentativas</th><th>Estado</th><th>Detalhe</th></tr>${(d.subtasks||[]).map(s =>
-      `<tr><td>${esc(s.plan_id)}</td><td>${esc(s.title)}<div class="muted">${esc((s.files||[]).join(', '))}</div></td>
-      <td>${esc(s.assigned_to||s.agent)}</td><td>${esc(s.reviewer||'—')}</td><td class="muted">${esc(s.assignment_reason||'')}</td>
-      <td>${s.review_cycles} / ${s.check_fix_attempts??0} / ${s.impl_attempts??0}<div class="muted">checagem: ${esc((s.checks&&s.checks.status)||'—')}</div></td>
-      <td>${pill(s.status)}${s.status==='needs_human'?`<div class="row">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${s.id}','${a}')">${a}</button>`).join('')}</div>`:''}</td>
-      <td><pre>${esc(s.error || (s.review&&s.review.summary) || (s.result&&s.result.summary) || '')}</pre>${s.escalation?`<details><summary class="muted">resumo dos dois lados</summary><pre>${esc(JSON.stringify(s.escalation,null,2))}</pre></details>`:''}</td></tr>`).join('')}</table>`;
-  if (tab==='messages'){ const m = await api(`/tasks/${selected}/messages`); html = `<table><tr><th>Hora</th><th>De → Para</th><th>Skill</th><th>Estado A2A</th><th>Resumo</th></tr>${m.map(x =>
-      `<tr><td class="muted">${t(x.created_at)}</td><td>${esc(x.sender)} → ${esc(x.recipient)}<div class="muted">${esc(x.direction)}</div></td><td>${esc(x.skill||'')}</td><td>${x.a2a_state?pill(x.a2a_state):''}<div class="muted">${esc((x.a2a_task_id||'').slice(0,8))}</div></td><td><pre>${esc(x.summary)}</pre></td></tr>`).join('')}</table>`; }
-  if (tab==='events') html = `<table><tr><th>Hora</th><th>Agente</th><th>Evento</th><th>Conteúdo</th></tr>${d.events.map(e =>
-      `<tr class="lvl-${esc(e.level)}"><td class="muted">${t(e.created_at)}</td><td>${esc(e.agent)}</td><td>${esc(e.event)}</td><td><pre>${esc(e.content.slice(0,1500))}</pre></td></tr>`).join('')}</table>`;
-  if (tab==='files'){ const f = await api(`/files/changes?workflow_id=${selected}`); html = f.length ? `<table><tr><th>Arquivo</th><th>Tipo</th><th>Agente</th><th>Na reserva</th><th>Fonte</th></tr>${f.map(c =>
-      `<tr><td>${esc(c.path)}</td><td>${esc(c.change_type)}</td><td>${esc(c.agent)}</td><td>${c.within_reservation?pill('ok'):pill('failed')}</td><td class="muted">${esc(c.source)}</td></tr>`).join('')}</table>` : '<span class="muted">Nenhuma alteração registrada.</span>'; }
-  if (tab==='plan') html = `<pre style="max-height:500px">${esc(JSON.stringify({metrics:d.metrics, plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
-  $('#tabBody').innerHTML = html; }
-
-const GTABS = {errors:'Erros', runs:'Execuções dos modelos', locks:'Reservas de arquivos', decisions:'Decisões técnicas', messages:'Todas as conversas'};
-async function loadGlobal(){ $('#gtabs').innerHTML = Object.entries(GTABS).map(([k,v]) => `<button class="${k===gtab?'on':''}" onclick="gtab='${k}';loadGlobal()">${v}</button>`).join('');
-  let html=''; try{
-  if (gtab==='errors'){ const e = await api('/errors?limit=50'); html = `<table><tr><th>Hora</th><th>Agente</th><th>Evento</th><th>Conteúdo</th></tr>${e.events.sort((a,b)=>b.id-a.id).slice(0,50).map(x =>
-      `<tr class="lvl-${esc(x.level)}"><td class="muted">${t(x.created_at)}</td><td>${esc(x.agent)}</td><td>${esc(x.event)}</td><td><pre>${esc(x.content.slice(0,600))}</pre></td></tr>`).join('')}</table>`; }
-  if (gtab==='runs'){ const r = await api('/runs?limit=50'); html = `<table><tr><th>Hora</th><th>Agente</th><th>Skill</th><th>Estado</th><th>Duração</th><th>Uso</th><th>Erro</th></tr>${r.map(x =>
-      `<tr><td class="muted">${t(x.created_at)}</td><td>${esc(x.agent)}</td><td>${esc(x.skill||'')}</td><td>${pill(x.status)}</td><td>${x.duration_seconds??''}</td><td><pre>${esc(x.usage?JSON.stringify(x.usage):'')}</pre></td><td><pre>${esc(x.error||'')}</pre></td></tr>`).join('')}</table>`; }
-  if (gtab==='locks'){ const l = await api('/locks'); const h = await api('/locks/history?limit=30'); html = `<b>Ativas</b><table><tr><th>Recurso</th><th>Dono</th><th>Subtarefa</th><th>Expira</th></tr>${l.map(x =>
-      `<tr><td>${esc(x.resource)}</td><td>${esc(x.owner)}</td><td>${esc(x.subtask_id)}</td><td>${t(x.expires_at)}</td></tr>`).join('') || '<tr><td colspan=4 class="muted">nenhuma</td></tr>'}</table><br><b>Histórico</b><table>${h.map(x =>
-      `<tr><td class="muted">${t(x.created_at)}</td><td>${esc(x.action)}</td><td>${esc(x.resource)}</td><td>${esc(x.owner)}</td></tr>`).join('')}</table>`; }
-  if (gtab==='decisions'){ const d = await api('/decisions?limit=50'); html = `<table><tr><th>#</th><th>Título</th><th>Decisão</th><th>Autor</th><th>Estado</th></tr>${d.map(x =>
-      `<tr><td>${x.id}</td><td>${esc(x.title)}</td><td><pre>${esc(x.decision)}</pre></td><td>${esc(x.author)}</td><td>${pill(x.status)}</td></tr>`).join('')}</table>`; }
-  if (gtab==='messages'){ const m = await api('/messages?limit=60'); html = `<table><tr><th>Hora</th><th>De → Para</th><th>Skill</th><th>Estado</th><th>Resumo</th></tr>${m.map(x =>
-      `<tr><td class="muted">${t(x.created_at)}</td><td>${esc(x.sender)} → ${esc(x.recipient)}</td><td>${esc(x.skill||'')}</td><td>${x.a2a_state?pill(x.a2a_state):''}</td><td><pre>${esc(x.summary)}</pre></td></tr>`).join('')}</table>`; }
-  }catch(e){ html = `<span class="lvl-error">${esc(e.message)}</span>`; }
-  $('#gBody').innerHTML = html; }
-
-async function refresh(){ await Promise.all([loadHealth(), loadAgents(), loadWorkflows(), loadDetail(), loadGlobal(), loadMcp()]); }
-refresh(); setInterval(() => { loadWorkflows(); loadDetail(); loadAgents(); }, 3000); setInterval(() => { loadGlobal(); loadMcp(); loadHealth(); }, 10000);
+async function refresh(){ await loadHealth(); await loadWorkflows(true); await Promise.all([loadAgents(), loadDetail(true), loadGlobal(true), loadMcp()]); }
+refresh(); setInterval(() => { loadWorkflows(); loadDetail(); loadAgents(); if(vw==='tech') loadTech(); }, 3000); setInterval(() => { loadGlobal(); loadMcp(); loadHealth(); }, 10000);
 </script>
 </body>
 </html>
+

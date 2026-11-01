@@ -53,7 +53,7 @@ SYMMETRIC_SKILLS = (SKILL_PLAN, SKILL_ASSIGN, SKILL_IMPLEMENT, SKILL_REVIEW, SKI
 AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
     "gemini": AgentDefinition(
         name="gemini",
-        display_name="Gemini 4 Argon High — Tech Lead",
+        display_name="Gemini — Tech Lead",
         role="CTO / Tech Lead",
         description="Mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes. Planeja, implementa e revisa; "
                     "nunca revisa o próprio trabalho.",
@@ -62,7 +62,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
     ),
     "deepseek": AgentDefinition(
         name="deepseek",
-        display_name="DeepSeek V4.1 Flash Free — Senior Developer",
+        display_name="DeepSeek — Senior Developer",
         role="Senior Developer",
         description="Mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração. Planeja, implementa e revisa; "
                     "nunca revisa o próprio trabalho.",

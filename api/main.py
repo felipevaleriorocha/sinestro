@@ -44,7 +44,7 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
         yield
         await shutdown(app)
 
-    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version="0.5.0", lifespan=lifespan)
     holder["app"] = app
     app.state.container = container
     app.state.started = False
@@ -96,3 +96,4 @@ async def shutdown(app: FastAPI) -> None:
         if close:
             close()
     app.state.started = False
+

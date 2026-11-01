@@ -22,7 +22,7 @@ def badge(workflow: dict) -> str:
     fn = re.search(r"/\*FR-BADGE-START\*/(.*?)/\*FR-BADGE-END\*/", html, re.S).group(1)
     esc = re.search(r"const esc = .*?;\n", html).group(0)
     script = esc + fn + f"\nprocess.stdout.write(finalReviewBadge({json.dumps(workflow)}));"
-    return subprocess.run([NODE, "-e", script], capture_output=True, text=True, check=True, timeout=20).stdout
+    return subprocess.run([NODE, "-e", script], capture_output=True, text=True, encoding="utf-8", check=True, timeout=20).stdout
 
 
 def test_final_review_disabled_is_recorded_and_status_completed(harness, workspace):

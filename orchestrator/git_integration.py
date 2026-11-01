@@ -87,5 +87,21 @@ class GitInspector:
             else:
                 # Estava limpo antes e agora aparece no `git status`: mudou durante esta etapa.
                 kind = "deleted" if a is None else "modified_or_added"
-            changes.append({"path": path, "change_type": kind})
+            item = {"path": path, "change_type": kind}
+            # Diff isolado por arquivo. Arquivos novos não rastreados não aparecem em git diff,
+            # então o conteúdo atual é incluído de forma limitada.
+            if before.is_git:
+                diff = run_git(["diff", "--", path], self.root, timeout=30)
+                text = diff.stdout if diff.returncode == 0 else ""
+            else:
+                text = ""
+            if not text and a is not None:
+                try:
+                    text = (self.root / path).read_text(encoding="utf-8", errors="replace")
+                    text = "[arquivo novo/estado atual]\n" + text
+                except OSError:
+                    text = ""
+            item["diff"] = text[:20000]
+            changes.append(item)
         return changes
+

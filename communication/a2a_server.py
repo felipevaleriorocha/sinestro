@@ -32,7 +32,7 @@ from orchestrator.agent_registry import AgentDefinition
 from orchestrator.schemas import AssignmentResponse, ImplementationReport, Plan, ReviewResult
 
 log = logging.getLogger("a2a.server")
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 
 def agent_base_path(name: str) -> str:
@@ -77,7 +77,8 @@ class RoleAgentExecutor(AgentExecutor):
         me = self.defn.name
         other = "deepseek" if me == "gemini" else "gemini"
         if skill == "plan_feature":
-            return prompts.plan_prompt(me, p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"))
+            return prompts.plan_prompt(me, p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"),
+                                       p.get("validation_errors"), p.get("previous_plan"))
         if skill == "respond_assignment":
             return prompts.respond_assignment_prompt(me, p.get("planner", other), p.get("proposals", []), p.get("goal", ""),
                                                      p.get("context_text", ""))
@@ -123,9 +124,9 @@ class RoleAgentExecutor(AgentExecutor):
         if skill in {"review_implementation", "final_review"}:
             try:
                 rev = ReviewResult.model_validate(parse_json_object(text))
-            except (ValidationError, AgentResponseError):
-                rev = ReviewResult(verdict="changes_requested", summary=text[:2000], structured=False,
-                                   findings=["O revisor não retornou JSON estruturado."])
+            except (ValidationError, AgentResponseError) as exc:
+                log.warning("Revisão fora do formato JSON: %s", redact(exc)[:500])
+                rev = ReviewResult(verdict="changes_requested", summary=text[:2000], structured=False)
             return rev.model_dump(), f"{rev.verdict}: {rev.summary[:250]}"
         raise AgentResponseError(f"Skill não suportada: {skill}")
 
@@ -226,3 +227,4 @@ def mount_a2a_agents(app, *, definitions: dict[str, AgentDefinition], backends: 
 def card_to_dict(card: AgentCard) -> dict[str, Any]:
     from google.protobuf.json_format import MessageToDict
     return MessageToDict(card)
+

@@ -112,6 +112,9 @@ class Settings:
     max_review_cycles: int = 2
     max_subtasks: int = 5
     max_parallel_subtasks: int = 1
+    parallel_execution: bool = False
+    parallel_per_agent: int = 1
+    dependency_policy_file: Path = BASE_DIR / "config" / "dependency_policy.json"
     allow_agent_fallback: bool = False
     final_review: bool = True
     a2a_poll_interval: float = 2.0
@@ -160,6 +163,8 @@ class Settings:
             "max_blocked_subtasks": self.max_blocked_subtasks,
             "assignment_negotiation": self.assignment_negotiation,
             "max_parallel_subtasks": self.max_parallel_subtasks,
+            "parallel_execution": self.parallel_execution,
+            "parallel_per_agent": self.parallel_per_agent,
         }
 
 
@@ -216,6 +221,9 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         max_review_cycles=_int(g("MAX_REVIEW_CYCLES"), 2, 0),
         max_subtasks=_int(g("MAX_SUBTASKS"), 5, 1),
         max_parallel_subtasks=_int(g("MAX_PARALLEL_SUBTASKS"), 1, 1),
+        parallel_execution=_bool(g("PARALLEL_EXECUTION"), False),
+        parallel_per_agent=_int(g("PARALLEL_PER_AGENT"), 1, 1),
+        dependency_policy_file=_path(g("DEPENDENCY_POLICY_FILE"), BASE_DIR / "config" / "dependency_policy.json"),
         allow_agent_fallback=_bool(g("ALLOW_AGENT_FALLBACK"), False),
         final_review=_bool(g("FINAL_REVIEW"), True),
         a2a_poll_interval=float(_int(g("A2A_POLL_INTERVAL_MS"), 2000, 50)) / 1000.0,
@@ -233,3 +241,4 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         context_sources_file=_path(g("CONTEXT_SOURCES_FILE"), BASE_DIR / "config" / "context_sources.json"),
         mcp_config_file=_path(g("MCP_CONFIG_FILE"), BASE_DIR / "config" / "mcp_servers.json"),
     )
+

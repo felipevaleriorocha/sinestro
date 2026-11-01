@@ -1,0 +1,55 @@
+# =====================================================================
+# Roblox Multi-Agent Orchestrator — .gitignore
+# =====================================================================
+
+# ---- Segredos e configuração local (NUNCA versionar) ------------------
+.env
+.env.*
+!.env.example
+
+# ---- Ambiente Python ---------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---- Dados de execução (histórico, estado, logs, prompts temporários) --
+orchestrator*.db
+orchestrator*.db-*
+orchestrator*.db.bak-*
+*.db-wal
+*.db-shm
+runtime/
+logs/
+
+# ---- Configuração local de integrações ---------------------------------
+config/mcp_servers.json
+
+# ---- Backups gerados pelos scripts de aplicação ------------------------
+backup_pre_v042/
+backup_front_v2/
+dashboard/index.backup-*.html
+
+# ---- Scripts de aplicação única e arquivos de diagnóstico --------------
+# (remova estas linhas se quiser versionar os scripts)
+aplicar_v*.py
+integrar_front*.py
+index_novo*.html
+review_crua.txt
+opencode_msgs*.json
+captura_resumo.txt
+*.zip
+
+# ---- Editor / sistema operacional --------------------------------------
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
