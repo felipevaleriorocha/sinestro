@@ -8,7 +8,9 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from communication.a2a_server import agent_base_path, card_to_dict
-from orchestrator.task_manager import WF
+from orchestrator.assignment import other
+from orchestrator.schemas import AssignmentDecision
+from orchestrator.task_manager import ST, WF
 
 router = APIRouter()
 
@@ -28,6 +30,11 @@ class DecisionRequest(BaseModel):
     supersedes: int | None = None
 
 
+class HumanDecision(BaseModel):
+    action: Literal["approve", "retry", "reassign", "reject"]
+    note: str = Field(default="", max_length=4000)
+
+
 def C(request: Request):
     return request.app.state.container
 
@@ -35,7 +42,7 @@ def C(request: Request):
 @router.get("/health", tags=["Sistema"])
 async def health(request: Request) -> dict[str, Any]:
     c = C(request)
-    return {"ok": True, "version": "0.3.0", "mock_mode": c.mock_mode, **c.settings.public_summary(),
+    return {"ok": True, "version": "0.4.0", "mock_mode": c.mock_mode, **c.settings.public_summary(),
             "git_repo": await asyncio.to_thread(c.git.is_repo)}
 
 
@@ -63,6 +70,7 @@ def get_task(task_id: str, request: Request) -> dict[str, Any]:
         "id": wf["id"], "goal": wf["goal"], "status": wf["status"], "phase": wf.get("phase"), "mode": wf.get("mode"),
         "created_at": wf["created_at"], "updated_at": wf["updated_at"], "result": wf.get("result"), "error": wf.get("error"),
         "plan": wf.get("plan"), "context": wf.get("context_sources"), "cancel_requested": wf.get("cancel_requested"),
+        "planned_by": wf.get("planned_by"), "planned_by_fallback": wf.get("planned_by_fallback"), "metrics": wf.get("metrics"),
         "running": c.coordinator.is_running(task_id),
         "subtasks": c.tasks.subtasks(task_id),
         "events": [{k: e[k] for k in ("created_at", "agent", "event", "level", "content", "subtask_id")} for e in events],
@@ -89,12 +97,46 @@ async def resume_task(task_id: str, request: Request) -> dict:
         raise HTTPException(404, "Tarefa não encontrada.")
     if wf["status"] not in WF.RESUMABLE or c.coordinator.is_running(task_id):
         raise HTTPException(409, f"Tarefa não pode ser retomada (status {wf['status']}).")
+    pending = [s["id"] for s in c.tasks.subtasks(task_id) if s["status"] == ST.NEEDS_HUMAN]
+    if pending:
+        raise HTTPException(409, {"detail": "Há subtarefas aguardando decisão humana. Use POST /tasks/{id}/subtasks/{sid}/decision.",
+                                  "subtasks": pending})
     if wf["status"] == WF.PLANNED:
-        c.repo.update_workflow(task_id, status=WF.QUEUED)
-        with c.repo.connect() as con:
-            con.execute("UPDATE tasks SET mode='full' WHERE id=?", (task_id,))
+        c.repo.update_workflow(task_id, status=WF.QUEUED, mode="full")
     c.coordinator.start(task_id, resume=True)
     return {"id": task_id, "status": "resuming"}
+
+
+@router.post("/tasks/{task_id}/subtasks/{subtask_id}/decision", tags=["Tarefas"])
+def human_decision(task_id: str, subtask_id: str, body: HumanDecision, request: Request) -> dict:
+    """Decisão humana para subtarefa em `needs_human`. Depois, chame POST /tasks/{id}/resume."""
+    c = C(request)
+    sub = c.repo.get_subtask(subtask_id)
+    if not sub or sub["workflow_id"] != task_id:
+        raise HTTPException(404, "Subtarefa não encontrada.")
+    if sub["status"] != ST.NEEDS_HUMAN:
+        raise HTTPException(409, f"Subtarefa não aguarda decisão (status {sub['status']}).")
+    if c.coordinator.is_running(task_id):
+        raise HTTPException(409, "Workflow em execução.")
+    decision = {"action": body.action, "note": body.note, "consumed": False}
+    reset = {"review_cycles": 0, "check_fix_attempts": 0, "impl_attempts": 0}
+    if body.action == "approve":
+        c.repo.update_subtask(subtask_id, status=ST.APPROVED, human_decision_json=decision, error=None)
+        c.decisions.accept_for_subtask(subtask_id)
+    elif body.action == "reject":
+        c.repo.update_subtask(subtask_id, status=ST.REJECTED, human_decision_json=decision, error=f"Rejeitada por decisão humana: {body.note}")
+        c.decisions.reject_for_subtask(subtask_id)
+    elif body.action == "retry":
+        c.repo.update_subtask(subtask_id, status=ST.PENDING, human_decision_json=decision, error=None, **reset)
+    else:  # reassign: troca quem implementa e quem revisa
+        new_impl = other(sub.get("assigned_to") or sub["agent"])
+        d = AssignmentDecision(task_id=sub["plan_id"], assigned_to=new_impl, reviewer=other(new_impl), decided_by="human",
+                               proposed_to=sub.get("assigned_to"), reason=f"Reatribuída por decisão humana: {body.note}"[:400])
+        c.repo.update_subtask(subtask_id, status=ST.PENDING, human_decision_json=decision, error=None, agent=new_impl,
+                              assigned_to=new_impl, reviewer=d.reviewer, assignment_reason=f"[human] {d.reason}",
+                              assignment_json=d.model_dump(), a2a_context_id=None, **reset)
+    c.tasks.event(task_id, "user", f"human_decision_{body.action}", {"subtask": subtask_id, "note": body.note}, subtask_id=subtask_id)
+    return {"subtask": subtask_id, "action": body.action, "next": f"POST /tasks/{task_id}/resume"}
 
 
 @router.get("/tasks/{task_id}/messages", tags=["Comunicação A2A"])
@@ -231,8 +273,13 @@ async def opencode_contract(request: Request, refresh: bool = False) -> dict:
 
 @router.post("/integrations/opencode/clear-quota", tags=["Integrações"])
 def clear_quota(request: Request) -> dict:
-    backend = C(request).backends.get("deepseek")
-    if not hasattr(backend, "clear_quota"):
-        raise HTTPException(400, "Backend não suporta.")
+    return clear_agent_quota("deepseek", request)
+
+
+@router.post("/agents/{name}/clear-quota", tags=["Agentes"])
+def clear_agent_quota(name: str, request: Request) -> dict:
+    backend = C(request).backends.get(name)
+    if backend is None or not hasattr(backend, "clear_quota"):
+        raise HTTPException(400, "Agente desconhecido ou sem controle de cota.")
     backend.clear_quota()
-    return {"ok": True}
+    return {"ok": True, "agent": name}

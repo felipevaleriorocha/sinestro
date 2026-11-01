@@ -64,6 +64,8 @@ def test_change_outside_reservation_is_flagged(harness, workspace):
         b = build_mock_backends()
 
         def respond(skill, prompt, calls):
+            if skill != "implement_task":
+                return json.dumps({"responses": []})
             (workspace / "src" / "shared" / "Example.lua").write_text("return {}\n")
             (workspace / "README.md").write_text("alterado fora da reserva\n")
             return json.dumps({"status": "done", "summary": "ok", "files_modified": ["src/shared/Example.lua", "README.md"]})

@@ -127,8 +127,13 @@ class Repository:
                     "INSERT INTO task_events(task_id, created_at, agent, event, content, level) VALUES(?,?,?,?,?,?)",
                     (r["id"], utc_now(), "orchestrator", "interrupted", "Serviço reiniciado durante a execução.", "warning"),
                 )
+            # Interrompida durante a revisão e com relatório salvo: retoma direto na revisão (não reimplementa).
             con.execute(
-                "UPDATE subtasks SET status='interrupted', updated_at=? WHERE status IN ('running','reviewing','delegated')",
+                "UPDATE subtasks SET status='awaiting_review', updated_at=? WHERE status='reviewing' AND result_json IS NOT NULL",
+                (utc_now(),),
+            )
+            con.execute(
+                "UPDATE subtasks SET status='interrupted', updated_at=? WHERE status IN ('running','reviewing','checking','delegated')",
                 (utc_now(),),
             )
         return len(rows)
@@ -262,6 +267,11 @@ class Repository:
         for r in rows:
             r["usage"] = _loads(r.pop("usage_json", None))
         return rows
+
+    def runs_for_workflow(self, workflow_id: str) -> list[dict]:
+        with self.connect() as con:
+            return [dict(r) for r in con.execute(
+                "SELECT agent, skill, status, duration_seconds FROM agent_runs WHERE workflow_id=? ORDER BY id", (workflow_id,)).fetchall()]
 
     def get_session(self, agent: str, context_key: str) -> str | None:
         with self.connect() as con:

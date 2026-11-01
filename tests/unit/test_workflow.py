@@ -12,9 +12,10 @@ def writing_deepseek(workspace: Path, rel: str = "src/shared/Example.lua", repor
     base = default_deepseek_responder(report_files if report_files is not None else [rel])
 
     def respond(skill, prompt, calls):
-        target = workspace / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(f"return {{ version = {calls['count']} }}\n", encoding="utf-8")
+        if skill == "implement_task":  # v0.4: o DeepSeek também responde atribuição/revisão; só escreve ao implementar
+            target = workspace / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(f"return {{ version = {calls['count']} }}\n", encoding="utf-8")
         return base(skill, prompt, calls)
 
     return respond
@@ -30,10 +31,12 @@ def test_create_task_plan_delegate_review_approve(harness, workspace):
             d = await h.wait_done(r.json()["id"])
             assert d["status"] == "completed", d["error"]
             st = d["subtasks"][0]
-            assert st["status"] == "approved" and st["review_cycles"] == 1 and st["agent"] == "deepseek"
+            # v0.4: review_cycles conta ciclos de AJUSTE (aprovado de primeira = 0); revisor é o outro agente
+            assert st["status"] == "approved" and st["review_cycles"] == 0 and st["agent"] == "deepseek"
+            assert st["assigned_to"] == "deepseek" and st["reviewer"] == "gemini"
             assert st["result"]["files_modified"] == ["src/shared/Example.lua"]
             assert [c["skill"] for c in b["gemini"].calls] == ["plan_feature", "review_implementation", "final_review"]
-            p = b["deepseek"].calls[0]["prompt"]
+            p = b["deepseek"].skill_calls("implement_task")[0]["prompt"]
             for marker in ("OBJETIVO DA SUBTAREFA", "CONTEXTO COMPARTILHADO", "ARQUIVOS RESERVADOS", "CRITÉRIOS DE ACEITAÇÃO", "RESTRIÇÕES TÉCNICAS"):
                 assert marker in p
             changes = (await h.client.get(f"/files/changes?workflow_id={d['id']}")).json()
@@ -50,7 +53,7 @@ def test_review_requests_changes_then_approves(harness, workspace):
             wf = (await h.client.post("/tasks", json={"goal": "Criar módulo com revisão"})).json()["id"]
             d = await h.wait_done(wf)
             assert d["status"] == "completed"
-            assert d["subtasks"][0]["review_cycles"] == 2
+            assert d["subtasks"][0]["review_cycles"] == 1  # v0.4: 1 ciclo de ajuste
             impl = [c for c in b["deepseek"].calls if c["skill"] == "implement_task"]
             assert len(impl) == 2
             assert "REVISÃO DE Gemini" in impl[1]["prompt"] and "ajuste simulado" in impl[1]["prompt"]
@@ -69,9 +72,10 @@ def test_review_cycle_limit_prevents_infinite_loop(harness, workspace):
         async with harness(b, MAX_REVIEW_CYCLES=1) as h:
             d = await h.wait_done((await h.client.post("/tasks", json={"goal": "Loop de revisão"})).json()["id"])
             st = d["subtasks"][0]
-            assert st["status"] == "needs_attention" and "Limite" in st["error"]
+            # v0.4: esgotar ciclos escala para decisão humana (needs_human), não falha
+            assert st["status"] == "needs_human" and st["escalation"]["code"] == "review_cycles_exhausted"
             assert len([c for c in b["deepseek"].calls if c["skill"] == "implement_task"]) == 2
-            assert d["status"] == "failed"
+            assert d["status"] == "needs_human"
     run(go())
 
 

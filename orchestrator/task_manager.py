@@ -6,7 +6,7 @@ from typing import Any
 
 from database.repository import Repository
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 class WF:
@@ -21,7 +21,9 @@ class WF:
     FAILED = "failed"
     CANCELED = "canceled"
     INTERRUPTED = "interrupted"    # serviço reiniciado no meio
-    RESUMABLE = {BLOCKED, FAILED, INTERRUPTED, COMPLETED_WITH_ISSUES, PLANNED, CANCELED}
+    NEEDS_HUMAN = "needs_human"    # discordância após os ciclos / evidência não verificável; aguarda decisão humana
+    PAUSED = "paused"              # limite de subtarefas bloqueadas atingido
+    RESUMABLE = {BLOCKED, FAILED, INTERRUPTED, COMPLETED_WITH_ISSUES, PLANNED, CANCELED, NEEDS_HUMAN, PAUSED}
     ACTIVE = {QUEUED, PLANNING, DELEGATING, REVIEWING}
 
 
@@ -30,15 +32,19 @@ class ST:
     RUNNING = "running"
     REVIEWING = "reviewing"
     APPROVED = "approved"
-    COMPLETED = "completed"        # executada pelo Gemini (sem revisão cruzada)
+    COMPLETED = "completed"        # legado v0.3 (Gemini implementava sem revisão cruzada)
     REJECTED = "rejected"
-    NEEDS_ATTENTION = "needs_attention"
+    NEEDS_ATTENTION = "needs_attention"  # legado v0.3
+    NEEDS_HUMAN = "needs_human"
+    AWAITING_REVIEW = "awaiting_review"  # implementada; revisor (o outro agente) indisponível — nunca autorrevisão
     BLOCKED = "blocked"
     FAILED = "failed"
     CANCELED = "canceled"
     INTERRUPTED = "interrupted"
     DONE = {APPROVED, COMPLETED}
-    FINAL = {APPROVED, COMPLETED, REJECTED, NEEDS_ATTENTION, BLOCKED, FAILED, CANCELED}
+    FINAL = {APPROVED, COMPLETED, REJECTED, NEEDS_ATTENTION, BLOCKED, FAILED, CANCELED, NEEDS_HUMAN}
+    DEP_FAILED = {REJECTED, FAILED, CANCELED}
+    BLOCKING = {BLOCKED, AWAITING_REVIEW}
 
 
 class TaskManager:
@@ -67,7 +73,7 @@ class TaskManager:
                 "seq": seq,
                 "plan_id": t.get("id") or f"T{seq}",
                 "title": t.get("title") or f"Subtarefa {seq}",
-                "agent": t.get("agent", "deepseek"),
+                "agent": t.get("assigned_to") or t.get("agent", "deepseek"),
                 "spec": t,
                 "files": t.get("files", []),
                 "depends_on": t.get("depends_on", []),
@@ -88,22 +94,29 @@ class TaskManager:
         self.repo.add_event(wf_id, "orchestrator", "cancel_requested", "Cancelamento solicitado.", "warning")
 
     def reset_for_resume(self, wf_id: str) -> int:
+        """Volta para `pending` o que pode ser refeito. Mantém: aprovadas/rejeitadas, `awaiting_review`
+        (retoma direto na revisão) e `needs_human` sem decisão (aguardam POST .../decision)."""
         n = 0
         self.repo.update_workflow(wf_id, cancel_requested=0, error=None)
+        keep = ST.DONE | {ST.REJECTED, ST.AWAITING_REVIEW, ST.NEEDS_HUMAN, ST.PENDING}
         for s in self.subtasks(wf_id):
-            if s["status"] not in ST.DONE and s["status"] != ST.REJECTED:
+            if s["status"] not in keep:
                 self.repo.update_subtask(s["id"], status=ST.PENDING, error=None)
                 n += 1
         return n
 
     @staticmethod
-    def final_status(subtasks: list[dict], cancel_requested: bool) -> str:
+    def final_status(subtasks: list[dict], cancel_requested: bool, paused: bool = False) -> str:
         statuses = [s["status"] for s in subtasks]
         if cancel_requested or ST.CANCELED in statuses:
             return WF.CANCELED
         if statuses and all(s in ST.DONE for s in statuses):
             return WF.COMPLETED
-        if ST.BLOCKED in statuses:
+        if ST.NEEDS_HUMAN in statuses:
+            return WF.NEEDS_HUMAN
+        if paused:
+            return WF.PAUSED
+        if any(s in ST.BLOCKING or s == ST.PENDING for s in statuses):
             return WF.BLOCKED
         if any(s in ST.DONE for s in statuses):
             return WF.COMPLETED_WITH_ISSUES
