@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory)][ValidateSet('deepseek', 'gemini')][string]$Implementer
 )
 # TESTE REAL (CONSOME COTA): um agente implementa e o outro revisa, num workspace de rascunho (não no jogo).

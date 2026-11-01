@@ -1,4 +1,4 @@
-# Leitura segura do .env (sem ConvertFrom-StringData, que trata '\' como escape e corrompe caminhos/senhas).
+﻿# Leitura segura do .env (sem ConvertFrom-StringData, que trata '\' como escape e corrompe caminhos/senhas).
 function Read-EnvFile {
     param([Parameter(Mandatory)][string]$Path)
     $values = @{}

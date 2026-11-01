@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Live,        # inclui testes reais SEM tokens (agy --help, /api/info, /api/model, /api/agent)
     [switch]$LiveTokens   # inclui testes reais que enviam prompts (consome cota)
 )

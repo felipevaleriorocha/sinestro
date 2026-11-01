@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 # Inicia o orquestrador (FastAPI + A2A + painel) em 127.0.0.1:<ORCH_PORT, padrão 8787>.
 Set-Location $PSScriptRoot
 

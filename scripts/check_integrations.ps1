@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Orchestrator,  # também consulta o orquestrador em execução e os Agent Cards A2A
     [switch]$Json
 )

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 # Inicia o servidor HTTP do OpenCode 2.x no workspace do jogo, restrito a 127.0.0.1.
 . (Join-Path $PSScriptRoot 'scripts\EnvFile.ps1')
 
