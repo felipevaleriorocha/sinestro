@@ -23,16 +23,16 @@ from a2a.types import (
 from a2a.utils.constants import PROTOCOL_VERSION_1_0, TransportProtocol
 from pydantic import ValidationError
 
-from agents.base import AgentBackend, AgentCancelledError, AgentError, AgentResponseError, AgentResult, parse_json_object
+from agents.base import READ_ONLY_SKILLS, AgentBackend, AgentCancelledError, AgentError, AgentResponseError, AgentResult, parse_json_object
 from communication.messaging import parse_request
 from core.logging_setup import redact
 from database.repository import Repository
 from orchestrator import prompts
 from orchestrator.agent_registry import AgentDefinition
-from orchestrator.schemas import ImplementationReport, Plan, ReviewResult
+from orchestrator.schemas import AssignmentResponse, ImplementationReport, Plan, ReviewResult
 
 log = logging.getLogger("a2a.server")
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 def agent_base_path(name: str) -> str:
@@ -74,16 +74,24 @@ class RoleAgentExecutor(AgentExecutor):
 
     # ---------------------------------------------------------------- prompts por skill
     def _prompt(self, skill: str, p: dict) -> str:
+        me = self.defn.name
+        other = "deepseek" if me == "gemini" else "gemini"
         if skill == "plan_feature":
-            return prompts.plan_prompt(p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"))
+            return prompts.plan_prompt(me, p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"))
+        if skill == "respond_assignment":
+            return prompts.respond_assignment_prompt(me, p.get("planner", other), p.get("proposals", []), p.get("goal", ""),
+                                                     p.get("context_text", ""))
         if skill == "implement_task":
-            return prompts.implement_prompt(self.defn.name, p["task"], p["goal"], p.get("context_text", ""), p.get("feedback"),
-                                            int(p.get("cycle", 0)), p.get("previous_results", []), p.get("mcp_status"))
+            return prompts.implement_prompt(me, p["task"], p["goal"], p.get("context_text", ""), p.get("feedback"),
+                                            int(p.get("cycle", 0)), p.get("previous_results", []), p.get("mcp_status"),
+                                            p.get("reviewer") or other)
         if skill == "review_implementation":
-            return prompts.review_prompt(p["task"], p.get("report", {}), p["goal"], p.get("context_text", ""), int(p.get("cycle", 1)),
-                                         int(p.get("max_cycles", 1)), p.get("git_changes", []), p.get("mcp_status"))
+            return prompts.review_prompt(me, p.get("implementer") or other, p["task"], p.get("report", {}), p["goal"],
+                                         p.get("context_text", ""), int(p.get("cycle", 1)), int(p.get("max_cycles", 1)),
+                                         p.get("git_changes", []), p.get("checks"), p.get("mcp_status"), p.get("validate_plan"),
+                                         p.get("validation_errors"), p.get("previous_review"))
         if skill == "final_review":
-            return prompts.final_review_prompt(p["goal"], p.get("subtasks", []), p.get("context_text", ""))
+            return prompts.final_review_prompt(me, p["goal"], p.get("subtasks", []), p.get("context_text", ""))
         raise AgentResponseError(f"Skill não suportada: {skill}")
 
     @staticmethod
@@ -103,6 +111,13 @@ class RoleAgentExecutor(AgentExecutor):
             except (ValidationError, AgentResponseError):
                 rep = ImplementationReport(status="partial", summary=text[:4000], result="Resposta não estruturada.", structured=False)
             return rep.model_dump(), rep.summary[:300]
+        if skill == "respond_assignment":
+            try:
+                resp = AssignmentResponse.model_validate(parse_json_object(text))
+            except (ValidationError, AgentResponseError):
+                resp = AssignmentResponse(responses=[], structured=False)
+            counters = sum(1 for r in resp.responses if r.decision == "counter")
+            return resp.model_dump(), f"{len(resp.responses)} respostas, {counters} contestações"
         if skill in {"review_implementation", "final_review"}:
             try:
                 rev = ReviewResult.model_validate(parse_json_object(text))
@@ -143,7 +158,8 @@ class RoleAgentExecutor(AgentExecutor):
             prompt = self._prompt(skill, payload)
             result: AgentResult = await asyncio.to_thread(
                 self.backend.run, prompt, context_key=task.context_id, run_id=task.id,
-                options={"skill": skill, "title": f"{skill} {wf or ''} {st or ''}".strip(), **(payload.get("agent_options") or {})},
+                options={"skill": skill, "read_only": skill in READ_ONLY_SKILLS,
+                         "title": f"{skill} {wf or ''} {st or ''}".strip(), **(payload.get("agent_options") or {})},
             )
             structured, summary = self._structure(skill, result.text)
         except asyncio.CancelledError:

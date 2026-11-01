@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 
 from agents.base import (
-    AgentAuthError, AgentBackend, AgentCancelledError, AgentConnectionError, AgentHealth, AgentResponseError, AgentResult,
+    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentConnectionError, AgentHealth, AgentResponseError, AgentResult,
     AgentTimeoutError, ContractNotVerifiedError, ModelUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
 from agents.opencode_contract import OpenCodeContract
@@ -167,7 +167,8 @@ class OpenCodeAdapter(AgentBackend):
         self._spec_checked = False
         self._model_cache: tuple[float, dict] | None = None
         self._agents_cache: tuple[float, list[str]] | None = None
-        self._state_file = settings.runtime_dir / "opencode_state.json"
+        self._quota = QuotaCooldown(settings.runtime_dir / "opencode_state.json", settings.opencode_model,
+                                    settings.opencode_quota_cooldown_minutes)
         self._lock = threading.Lock()
         self._cancelled: set[str] = set()
         self._active_sessions: dict[str, str] = {}
@@ -279,39 +280,14 @@ class OpenCodeAdapter(AgentBackend):
         return status
 
     # ---------------------------------------------------------------- quota
-    def _read_state(self) -> dict:
-        try:
-            return json.loads(self._state_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {}
-
-    def _write_state(self, state: dict) -> None:
-        self._state_file.parent.mkdir(parents=True, exist_ok=True)
-        self._state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-
     def mark_quota_exceeded(self, message: str, retry_after: int | None = None) -> None:
-        seconds = retry_after if retry_after else self.settings.opencode_quota_cooldown_minutes * 60
-        until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
-        state = self._read_state()
-        state["quota"] = {"until": until.isoformat(), "message": redact(message)[:500], "model": self.model}
-        self._write_state(state)
+        self._quota.mark(message, retry_after)
 
     def clear_quota(self) -> None:
-        state = self._read_state()
-        state.pop("quota", None)
-        self._write_state(state)
+        self._quota.clear()
 
     def unavailable_reason(self) -> str | None:
-        quota = self._read_state().get("quota")
-        if not quota or quota.get("model") != self.model:
-            return None
-        try:
-            until = datetime.fromisoformat(quota["until"])
-        except (KeyError, ValueError):
-            return None
-        if until > datetime.now(timezone.utc):
-            return f"Quota do modelo {self.model} excedida; nova tentativa após {until.isoformat()} ({quota.get('message', '')[:200]})."
-        return None
+        return self._quota.reason()
 
     # ---------------------------------------------------------------- execução
     def _preflight(self) -> dict:
@@ -331,7 +307,11 @@ class OpenCodeAdapter(AgentBackend):
             raise ModelUnavailableError(f"Modelo {self.model} está desabilitado no OpenCode (enabled=false).")
         return status
 
-    def _create_session(self, title: str, model_status: dict) -> str:
+    def agent_for(self, options: dict) -> str:
+        read_only = options.get("read_only", options.get("skill") in READ_ONLY_SKILLS)
+        return (self.settings.opencode_review_agent if read_only else self.settings.opencode_agent) or ""
+
+    def _create_session(self, title: str, model_status: dict, agent: str = "") -> str:
         provider, model_id = self.model_ref()
         model_ref: dict[str, Any] = {"providerID": provider, "id": model_id}
         variant = self.settings.opencode_variant
@@ -345,12 +325,12 @@ class OpenCodeAdapter(AgentBackend):
             "model": model_ref,
             "location": {"directory": str(self.settings.project_root.resolve())},
         }
-        if self.settings.opencode_agent:
+        if agent:
             available = self.agents()
-            if self.settings.opencode_agent in available:
-                body["agent"] = self.settings.opencode_agent
+            if agent in available:
+                body["agent"] = agent
             else:
-                log.warning("OPENCODE_AGENT=%s ignorado: /api/agent retornou %s.", self.settings.opencode_agent, available or "lista vazia")
+                log.warning("Agente OpenCode '%s' ignorado: /api/agent retornou %s.", agent, available or "lista vazia")
         result = self._call("session_create", json_body=body, timeout=60)
         session = result.get("data", result) if isinstance(result, dict) else {}
         session_id = session.get("id") or session.get("sessionID") if isinstance(session, dict) else None
@@ -358,14 +338,16 @@ class OpenCodeAdapter(AgentBackend):
             raise AgentResponseError(f"OpenCode não retornou ID de sessão: {redact(json.dumps(result)[:500])}")
         return str(session_id)
 
-    def ensure_session(self, context_key: str, title: str, model_status: dict) -> str:
+    def ensure_session(self, context_key: str, title: str, model_status: dict, agent: str = "") -> str:
+        # A sessão fica presa ao agente com que foi criada; por isso a chave inclui o agente (Build x Plan).
+        key = f"{context_key}|{agent}" if agent else context_key
         if self._sessions:
-            existing = self._sessions.get_session(self.name, context_key)
+            existing = self._sessions.get_session(self.name, key)
             if existing:
                 return existing
-        session_id = self._create_session(title, model_status)
+        session_id = self._create_session(title, model_status, agent)
         if self._sessions:
-            self._sessions.save_session(self.name, context_key, session_id, self.model)
+            self._sessions.save_session(self.name, key, session_id, self.model)
         return session_id
 
     def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
@@ -373,7 +355,8 @@ class OpenCodeAdapter(AgentBackend):
         started = time.monotonic()
         try:
             status = self._preflight()
-            session_id = self.ensure_session(context_key, options.get("title") or f"Orchestrator {context_key}", status)
+            session_id = self.ensure_session(context_key, options.get("title") or f"Orchestrator {context_key}", status,
+                                             self.agent_for(options))
             with self._lock:
                 self._active_sessions[run_id] = session_id
             before = message_ids(self._call("session_messages", path_params={"session_id": session_id}, timeout=60))
@@ -435,6 +418,8 @@ class OpenCodeAdapter(AgentBackend):
         try:
             checks["model"] = self.model_status(refresh=deep)
             checks["opencode_agents"] = self.agents()
+            for label, wanted in (("implement_agent", self.settings.opencode_agent), ("review_agent", self.settings.opencode_review_agent)):
+                checks[label] = {"name": wanted or None, "available": (wanted in checks["opencode_agents"]) if wanted else None}
         except Exception as exc:  # noqa: BLE001
             checks["model_error"] = redact(exc)
         if deep or not self._spec_checked:

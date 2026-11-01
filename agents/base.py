@@ -89,6 +89,56 @@ class AgentHealth:
         }
 
 
+# Skills que não devem editar arquivos: o adaptador usa modo/agente somente leitura quando disponível.
+READ_ONLY_SKILLS = frozenset({"plan_feature", "respond_assignment", "review_implementation", "final_review"})
+
+
+class QuotaCooldown:
+    """Cooldown de quota persistido em arquivo (sobrevive a reinícios). Comum aos dois adaptadores."""
+
+    def __init__(self, state_file, model: str, default_minutes: int):
+        from pathlib import Path
+        self.state_file = Path(state_file)
+        self.model = model
+        self.default_minutes = default_minutes
+
+    def _read(self) -> dict:
+        try:
+            return json.loads(self.state_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _write(self, state: dict) -> None:
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        self.state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def mark(self, message: str, retry_after: int | None = None) -> None:
+        from datetime import timedelta
+        from core.logging_setup import redact
+        seconds = retry_after if retry_after else self.default_minutes * 60
+        until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        state = self._read()
+        state["quota"] = {"until": until.isoformat(), "message": redact(message)[:500], "model": self.model}
+        self._write(state)
+
+    def clear(self) -> None:
+        state = self._read()
+        state.pop("quota", None)
+        self._write(state)
+
+    def reason(self) -> str | None:
+        quota = self._read().get("quota")
+        if not quota or quota.get("model") != self.model:
+            return None
+        try:
+            until = datetime.fromisoformat(quota["until"])
+        except (KeyError, ValueError):
+            return None
+        if until > datetime.now(timezone.utc):
+            return f"Quota do modelo {self.model} excedida; nova tentativa após {until.isoformat()} ({quota.get('message', '')[:200]})."
+        return None
+
+
 class AgentBackend(ABC):
     """Backend que efetivamente executa o modelo. O A2A fica na camada `communication`."""
 

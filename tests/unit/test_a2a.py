@@ -13,8 +13,8 @@ from tests.conftest import run
 def test_agent_cards_have_identity_and_skills(harness):
     async def go():
         async with harness(build_mock_backends()) as h:
-            for name, skills in (("gemini", {"plan_feature", "review_implementation", "final_review", "implement_task"}),
-                                 ("deepseek", {"implement_task"})):
+            symmetric = {"plan_feature", "respond_assignment", "implement_task", "review_implementation", "final_review"}
+            for name, skills in (("gemini", symmetric), ("deepseek", symmetric)):
                 r = await h.client.get(f"/a2a/{name}/.well-known/agent-card.json")
                 assert r.status_code == 200
                 card = r.json()
@@ -62,7 +62,7 @@ def test_unsupported_skill_rejected_by_card_check(harness):
     async def go():
         async with harness(build_mock_backends()) as h:
             try:
-                await h.app.state.container.a2a.send("deepseek", "plan_feature", {}, summary="x")
+                await h.app.state.container.a2a.send("deepseek", "deploy_to_production", {}, summary="x")
                 raise AssertionError("deveria falhar")
             except A2ADelegationError as e:
                 assert e.code == "unsupported_skill"

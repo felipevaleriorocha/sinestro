@@ -1,8 +1,20 @@
-"""Prompts por papel. Os dois agentes recebem o MESMO bloco de contexto compartilhado."""
+"""Prompts por skill, neutros em relação ao agente (papéis simétricos).
+
+Os dois agentes recebem o MESMO bloco de contexto compartilhado. A tabela de desempate de atribuição
+NÃO aparece aqui (fica em config/assignment_rules.json); os prompts só listam as categorias permitidas.
+"""
 from __future__ import annotations
 
 import json
 from typing import Any
+
+from orchestrator.schemas import CATEGORIES, CHECKLIST
+
+AGENT_LABEL = {"gemini": "Gemini 4 Argon High", "deepseek": "DeepSeek V4.1 Flash Free"}
+AGENT_PROFILE = {
+    "gemini": "mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes",
+    "deepseek": "mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração",
+}
 
 COMMON_RULES = """REGRAS GERAIS (valem para todos os agentes):
 - Use somente informações presentes no CONTEXTO COMPARTILHADO e nos arquivos reais do workspace. Não invente mecânicas, nomes, números ou sistemas do jogo.
@@ -11,7 +23,14 @@ COMMON_RULES = """REGRAS GERAIS (valem para todos os agentes):
 - Não invente APIs do Roblox/Luau. Não declare testes como aprovados se não os executou.
 - Não altere arquivos fora dos ARQUIVOS RESERVADOS da sua subtarefa. Se precisar, reporte em "issues".
 - Não execute comandos destrutivos (reset, checkout, rm, push) nem altere configurações do repositório.
-- Não assuma conexão com o Roblox Studio via MCP: use apenas se o ESTADO MCP indicar conexão ativa para você."""
+- Não assuma conexão com o Roblox Studio via MCP: use apenas se o ESTADO MCP indicar conexão ativa para você.
+- Responda SOMENTE com o JSON pedido, sem texto fora dele."""
+
+READ_ONLY = "MODO SOMENTE LEITURA: NÃO crie, edite, mova nem apague arquivos nesta etapa. Qualquer alteração invalida sua resposta."
+
+
+def _other(agent: str) -> str:
+    return "deepseek" if agent == "gemini" else "gemini"
 
 
 def _mcp_line(mcp_status: dict | None, agent: str) -> str:
@@ -24,18 +43,30 @@ def _mcp_line(mcp_status: dict | None, agent: str) -> str:
     return "ESTADO MCP (para você): " + "; ".join(servers)
 
 
-def plan_prompt(goal: str, context_text: str, max_subtasks: int, mcp_status: dict | None) -> str:
-    return f"""Você é o CTO/Tech Lead (Gemini) de um projeto Roblox em Luau. Sua função agora é PLANEJAR, sem editar arquivos.
-{COMMON_RULES}
-{_mcp_line(mcp_status, 'gemini')}
+def _dump(v: Any) -> str:
+    return json.dumps(v, ensure_ascii=False)
 
-Divida a SOLICITAÇÃO em 1 a {max_subtasks} subtarefas executáveis, em ordem. Responda SOMENTE com JSON válido:
+
+def plan_prompt(agent: str, goal: str, context_text: str, max_subtasks: int, mcp_status: dict | None) -> str:
+    return f"""Você é {AGENT_LABEL.get(agent, agent)} e vai PLANEJAR uma funcionalidade de um projeto Roblox em Luau. {READ_ONLY}
+{COMMON_RULES}
+{_mcp_line(mcp_status, agent)}
+
+AGENTES DISPONÍVEIS (os dois planejam, implementam e revisam; quem implementa NUNCA revisa o próprio trabalho):
+- "gemini": {AGENT_PROFILE['gemini']}.
+- "deepseek": {AGENT_PROFILE['deepseek']}.
+
+Divida a SOLICITAÇÃO em 1 a {max_subtasks} subtarefas executáveis, em ordem. Para cada uma, PROPONHA quem implementa
+(assigned_to) com justificativa curta. O outro agente poderá aceitar ou contestar uma única vez.
+Categorias permitidas: {", ".join(CATEGORIES)}.
 {{
   "summary": "resumo do plano",
   "tasks": [
     {{
       "id": "T1",
-      "agent": "deepseek" | "gemini",
+      "assigned_to": "gemini" | "deepseek",
+      "category": "uma das categorias permitidas",
+      "assignment_reason": "por que este agente (curto)",
       "title": "título curto",
       "objective": "objetivo verificável",
       "instructions": "passos concretos",
@@ -49,9 +80,8 @@ Divida a SOLICITAÇÃO em 1 a {max_subtasks} subtarefas executáveis, em ordem. 
   "decisions": [{{"title": "...", "decision": "...", "rationale": "...", "tags": ["..."]}}],
   "risks": ["..."]
 }}
-Distribuição: "deepseek" = implementação Luau, mecânicas de RPG, scripts, bugs, refatoração. "gemini" = arquitetura, documentação, análise ampla.
 Duas subtarefas NÃO podem listar o mesmo arquivo, a menos que uma dependa da outra (depends_on).
-Inclua em "decisions" apenas decisões técnicas novas e necessárias (pode ser lista vazia).
+Não informe "reviewer": o revisor é sempre o outro agente.
 
 SOLICITAÇÃO DO USUÁRIO:
 {goal}
@@ -61,19 +91,56 @@ CONTEXTO COMPARTILHADO:
 """
 
 
-def implement_prompt(agent: str, task: dict, goal: str, context_text: str, feedback: dict | None, cycle: int,
-                     previous_results: list[str], mcp_status: dict | None) -> str:
-    role = "Senior Developer (DeepSeek)" if agent == "deepseek" else "Tech Lead executando uma subtarefa (Gemini)"
-    fb = ""
-    if feedback:
-        fb = f"""
-REVISÃO DO TECH LEAD (ciclo {cycle}) — trate TODOS os itens:
-- Veredito: {feedback.get('verdict')}
-- Alterações solicitadas: {json.dumps(feedback.get('requested_changes', []), ensure_ascii=False)}
-- Perguntas/questionamentos (responda em "answers"): {json.dumps(feedback.get('questions', []), ensure_ascii=False)}
-- Observações: {json.dumps(feedback.get('findings', []), ensure_ascii=False)}
+def respond_assignment_prompt(agent: str, planner: str, proposals: list[dict], goal: str, context_text: str) -> str:
+    return f"""Você é {AGENT_LABEL.get(agent, agent)}. {AGENT_LABEL.get(planner, planner)} propôs quem implementa cada subtarefa abaixo.
+{READ_ONLY}
+Responda em UM ÚNICO turno: aceite ou conteste cada proposta. Conteste apenas com motivo técnico concreto
+(ex.: a subtarefa envolve segurança de servidor, ou é UI/código mecânico). Não haverá nova rodada de debate:
+contestações são decididas por regras fixas do orquestrador. Quem implementar não revisará o próprio trabalho.
+Perfis: gemini = {AGENT_PROFILE['gemini']}; deepseek = {AGENT_PROFILE['deepseek']}.
+
+OBJETIVO GERAL: {goal}
+PROPOSTAS: {_dump(proposals)}
+
+Responda SOMENTE com JSON válido:
+{{"responses": [{{"task_id": "T1", "decision": "accept" | "counter", "proposed_agent": "gemini" | "deepseek", "reason": "curto"}}]}}
+
+CONTEXTO COMPARTILHADO:
+{context_text}
 """
-    return f"""Você é o {role} de um projeto Roblox em Luau.
+
+
+def _feedback_block(feedback: dict | None, cycle: int, reviewer: str) -> str:
+    if not feedback:
+        return ""
+    source = feedback.get("source", "review")
+    if source == "automated_checks":
+        return f"""
+CHECAGENS AUTOMÁTICAS FALHARAM (tentativa de correção {feedback.get('attempt', 1)}) — corrija TODAS as falhas abaixo:
+{_dump(feedback.get('failures', []))}
+"""
+    if source == "human":
+        return f"""
+DECISÃO HUMANA após escalonamento — siga esta orientação: {feedback.get('note') or '(sem nota)'}
+Último parecer do revisor: {_dump(feedback.get('last_review') or {})}
+"""
+    findings = [f for f in feedback.get("findings", []) if isinstance(f, dict)]
+    return f"""
+REVISÃO DE {AGENT_LABEL.get(reviewer, reviewer)} (ciclo de ajuste {cycle}) — trate TODOS os itens:
+- Veredito: {feedback.get('verdict')}
+- Achados com evidência (arquivo:linha / trecho): {_dump([{k: f.get(k) for k in ('file', 'line', 'snippet', 'issue', 'severity')} for f in findings])}
+- Alterações solicitadas: {_dump(feedback.get('requested_changes', []))}
+- Perguntas (responda em "answers"): {_dump(feedback.get('questions', []))}
+Se discordar de um achado, explique em "disputes" com motivo técnico. Achados com evidência válida prevalecem e devem ser tratados;
+divergências que persistirem serão escalonadas para decisão humana.
+"""
+
+
+def implement_prompt(agent: str, task: dict, goal: str, context_text: str, feedback: dict | None, cycle: int,
+                     previous_results: list[str], mcp_status: dict | None, reviewer: str | None = None) -> str:
+    reviewer = reviewer or _other(agent)
+    return f"""Você é {AGENT_LABEL.get(agent, agent)} e vai IMPLEMENTAR uma subtarefa de um projeto Roblox em Luau.
+Seu trabalho será revisado por {AGENT_LABEL.get(reviewer, reviewer)} e passará por checagens automáticas.
 {COMMON_RULES}
 {_mcp_line(mcp_status, agent)}
 
@@ -82,11 +149,11 @@ SUBTAREFA: {task.get('title')}
 OBJETIVO DA SUBTAREFA: {task.get('objective') or task.get('instructions')}
 INSTRUÇÕES: {task.get('instructions')}
 CONTEXTO ESPECÍFICO: {task.get('context') or '(nenhum)'}
-ARQUIVOS RESERVADOS PARA VOCÊ: {json.dumps(task.get('files', []), ensure_ascii=False)}
-CRITÉRIOS DE ACEITAÇÃO: {json.dumps(task.get('acceptance_criteria', []), ensure_ascii=False)}
-RESTRIÇÕES TÉCNICAS: {json.dumps(task.get('constraints', []), ensure_ascii=False)}
-RESULTADOS DE SUBTAREFAS ANTERIORES: {json.dumps(previous_results, ensure_ascii=False)}
-{fb}
+ARQUIVOS RESERVADOS PARA VOCÊ: {_dump(task.get('files', []))}
+CRITÉRIOS DE ACEITAÇÃO: {_dump(task.get('acceptance_criteria', []))}
+RESTRIÇÕES TÉCNICAS: {_dump(task.get('constraints', []))}
+RESULTADOS DE SUBTAREFAS ANTERIORES: {_dump(previous_results)}
+{_feedback_block(feedback, cycle, reviewer)}
 Inspecione os arquivos antes de editar. Ao terminar, responda SOMENTE com JSON válido:
 {{
   "status": "done" | "partial" | "blocked" | "failed",
@@ -95,6 +162,7 @@ Inspecione os arquivos antes de editar. Ao terminar, responda SOMENTE com JSON v
   "technical_decisions": ["decisão e motivo"],
   "issues": ["problemas encontrados/pendências"],
   "answers": ["respostas às perguntas do revisor, se houver"],
+  "disputes": ["discordância com um achado do revisor + motivo técnico, se houver"],
   "tests": ["testes executados e resultado real"],
   "result": "resultado final"
 }}
@@ -104,41 +172,74 @@ CONTEXTO COMPARTILHADO:
 """
 
 
-def review_prompt(task: dict, report: dict, goal: str, context_text: str, cycle: int, max_cycles: int,
-                  git_changes: list[dict], mcp_status: dict | None) -> str:
-    return f"""Você é o CTO/Tech Lead (Gemini) revisando a implementação do DeepSeek. NÃO edite arquivos.
+def review_prompt(reviewer: str, implementer: str, task: dict, report: dict, goal: str, context_text: str, cycle: int,
+                  max_cycles: int, git_changes: list[dict], checks: dict | None, mcp_status: dict | None,
+                  validate_plan: dict | None = None, validation_errors: list[str] | None = None,
+                  previous_review: dict | None = None) -> str:
+    plan_block = ""
+    if validate_plan:
+        plan_block = f"""
+VALIDAÇÃO DO PLANO: este plano foi feito por {AGENT_LABEL.get(validate_plan.get('planned_by', ''), 'outro agente')} enquanto você
+estava indisponível. Além da revisão, avalie se o plano é adequado: preencha "plan_valid" (true/false) e "plan_concerns".
+PLANO: {_dump(validate_plan.get('plan'))}
+"""
+    reform = ""
+    if validation_errors:
+        reform = f"""
+REFORMULAÇÃO OBRIGATÓRIA (única): seus achados anteriores foram DESCARTADOS por evidência inválida:
+{_dump(validation_errors)}
+Revisão anterior: {_dump(previous_review or {})}
+Refaça a revisão citando arquivo, linha e um trecho LITERAL curto copiado do arquivo (até ±5 linhas da linha informada).
+Se não houver problema real comprovável, use "approved".
+"""
+    return f"""Você é {AGENT_LABEL.get(reviewer, reviewer)} e vai REVISAR o trabalho de {AGENT_LABEL.get(implementer, implementer)}. {READ_ONLY}
 {COMMON_RULES}
-{_mcp_line(mcp_status, 'gemini')}
+{_mcp_line(mcp_status, reviewer)}
 
-Revise o estado REAL dos arquivos no workspace contra os critérios de aceitação. Ciclo de revisão {cycle} de {max_cycles}.
+Revise o estado REAL dos arquivos no workspace. Ciclo de revisão {cycle} (máximo de ajustes: {max_cycles}).
+CHECKLIST OBRIGATÓRIO (avalie cada item):
+1. acceptance_criteria: cada critério de aceitação foi atendido?
+2. roblox_api_misuse: há uso incorreto ou inexistente de APIs do Roblox/Luau?
+3. edge_case: casos de borda (nil, valores limite, jogador saindo, concorrência, falhas de rede/DataStore)?
+4. client_server_security: o servidor confia em dados do cliente? RemoteEvents/RemoteFunctions validam entrada? Lógica sensível só no servidor?
+
+EVIDÊNCIA OBRIGATÓRIA: todo achado precisa de "file" (caminho relativo), "line" (número) e "snippet" (trecho LITERAL curto,
+copiado do arquivo, perto da linha). Achado sem evidência verificável é DESCARTADO automaticamente.
+Perguntas sobre decisões técnicas vão em "questions" (não precisam de evidência).
+
 OBJETIVO GERAL: {goal}
-SUBTAREFA: {json.dumps(task, ensure_ascii=False)}
-RELATÓRIO DO DESENVOLVEDOR: {json.dumps(report, ensure_ascii=False)}
-ALTERAÇÕES DETECTADAS PELO GIT: {json.dumps(git_changes, ensure_ascii=False)}
-
+SUBTAREFA: {_dump(task)}
+RELATÓRIO DE QUEM IMPLEMENTOU: {_dump(report)}
+ALTERAÇÕES DETECTADAS PELO GIT: {_dump(git_changes)}
+CHECAGENS AUTOMÁTICAS: {_dump(checks or {"status": "no_active_checks"})}
+{plan_block}{reform}
 Responda SOMENTE com JSON válido:
 {{
   "verdict": "approved" | "changes_requested" | "needs_clarification" | "rejected",
   "summary": "avaliação",
-  "findings": ["observações objetivas, citando arquivos"],
+  "findings": [{{"file": "src/...", "line": 12, "snippet": "trecho literal", "issue": "problema", "severity": "blocker" | "major" | "minor",
+                 "checklist": "{'" | "'.join(CHECKLIST)}"}}],
   "requested_changes": ["ajustes concretos (se changes_requested)"],
-  "questions": ["perguntas/questionamentos sobre decisões técnicas (se needs_clarification)"],
+  "questions": ["perguntas sobre decisões técnicas (se needs_clarification)"],
   "rejection_reason": "justificativa (obrigatória se rejected)",
-  "decisions": [{{"title": "...", "decision": "...", "rationale": "..."}}]
+  "decisions": [{{"title": "...", "decision": "...", "rationale": "..."}}],
+  "plan_valid": true | false | null,
+  "plan_concerns": ["..."]
 }}
-Use "rejected" apenas quando a abordagem for inadequada e não corrigível com ajustes. Se não puder verificar algo, diga em findings.
+"changes_requested" e "rejected" exigem pelo menos um achado com evidência. Use "rejected" apenas quando a abordagem for
+inadequada e não corrigível com ajustes.
 
 CONTEXTO COMPARTILHADO:
 {context_text}
 """
 
 
-def final_review_prompt(goal: str, subtasks: list[dict[str, Any]], context_text: str) -> str:
-    return f"""Você é o CTO/Tech Lead (Gemini). Faça a revisão final do trabalho abaixo no workspace real. NÃO edite arquivos.
+def final_review_prompt(agent: str, goal: str, subtasks: list[dict[str, Any]], context_text: str) -> str:
+    return f"""Você é {AGENT_LABEL.get(agent, agent)}. Faça a revisão final do trabalho abaixo no workspace real. {READ_ONLY}
 {COMMON_RULES}
 OBJETIVO: {goal}
-SUBTAREFAS E RESULTADOS: {json.dumps(subtasks, ensure_ascii=False)}
-Responda SOMENTE JSON: {{"verdict": "approved" | "changes_requested" | "rejected", "summary": "...", "findings": ["..."], "requested_changes": ["..."]}}
+SUBTAREFAS E RESULTADOS: {_dump(subtasks)}
+Responda SOMENTE JSON: {{"verdict": "approved" | "changes_requested" | "rejected", "summary": "...", "findings": [], "requested_changes": ["..."]}}
 
 CONTEXTO COMPARTILHADO:
 {context_text}

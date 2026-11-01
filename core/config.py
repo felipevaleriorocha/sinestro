@@ -103,6 +103,10 @@ class Settings:
     agy_resume_conversations: str = "auto"  # auto | on | off
     agy_resume_flag: str = ""  # vazio = detectar via `agy --help`
     agy_effort_flag: str = ""  # vazio = detectar via `agy --help`
+    agy_review_mode: str = "plan"     # --mode para planejar/revisar (somente leitura), se `agy --help` anunciar --mode
+    agy_implement_mode: str = ""      # --mode para implementar; vazio = comportamento padrão do agy (o validado)
+    agy_quota_cooldown_minutes: int = 60
+    opencode_review_agent: str = "Plan"  # agente somente leitura do OpenCode para planejar/revisar
 
     # Fluxo
     max_review_cycles: int = 2
@@ -112,6 +116,12 @@ class Settings:
     final_review: bool = True
     a2a_poll_interval: float = 2.0
     a2a_task_timeout: int = 3600
+    max_check_fix_attempts: int = 2
+    max_implementation_attempts: int = 4
+    max_blocked_subtasks: int = 3
+    assignment_negotiation: bool = True
+    assignment_rules_file: Path = BASE_DIR / "config" / "assignment_rules.json"
+    checks_file: Path = BASE_DIR / "config" / "checks.json"
 
     # Concorrência
     file_lock_ttl_seconds: int = 1800
@@ -137,11 +147,18 @@ class Settings:
             "opencode_model": self.opencode_model,
             "opencode_variant": self.opencode_variant or None,
             "opencode_agent": self.opencode_agent or None,
+            "opencode_review_agent": self.opencode_review_agent or None,
             "opencode_auth_configured": bool(self.opencode_username and self.opencode_password),
             "agy_bin": self.agy_bin,
             "agy_model": self.agy_model,
             "agy_effort": self.agy_effort or None,
+            "agy_review_mode": self.agy_review_mode or None,
+            "agy_implement_mode": self.agy_implement_mode or None,
             "max_review_cycles": self.max_review_cycles,
+            "max_check_fix_attempts": self.max_check_fix_attempts,
+            "max_implementation_attempts": self.max_implementation_attempts,
+            "max_blocked_subtasks": self.max_blocked_subtasks,
+            "assignment_negotiation": self.assignment_negotiation,
             "max_parallel_subtasks": self.max_parallel_subtasks,
         }
 
@@ -192,6 +209,10 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         agy_resume_conversations=(_clean(g("AGY_RESUME_CONVERSATIONS")) or "auto").lower(),
         agy_resume_flag=_clean(g("AGY_RESUME_FLAG")),
         agy_effort_flag=_clean(g("AGY_EFFORT_FLAG")),
+        agy_review_mode=(_clean(g("AGY_REVIEW_MODE")) if g("AGY_REVIEW_MODE") is not None else "plan").lower(),
+        agy_implement_mode=_clean(g("AGY_IMPLEMENT_MODE")).lower(),
+        agy_quota_cooldown_minutes=_int(g("AGY_QUOTA_COOLDOWN_MINUTES"), 60, 0),
+        opencode_review_agent=_clean(g("OPENCODE_REVIEW_AGENT")) if g("OPENCODE_REVIEW_AGENT") is not None else "Plan",
         max_review_cycles=_int(g("MAX_REVIEW_CYCLES"), 2, 0),
         max_subtasks=_int(g("MAX_SUBTASKS"), 5, 1),
         max_parallel_subtasks=_int(g("MAX_PARALLEL_SUBTASKS"), 1, 1),
@@ -199,6 +220,12 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         final_review=_bool(g("FINAL_REVIEW"), True),
         a2a_poll_interval=float(_int(g("A2A_POLL_INTERVAL_MS"), 2000, 50)) / 1000.0,
         a2a_task_timeout=_int(g("A2A_TASK_TIMEOUT_SECONDS"), 3600, 5),
+        max_check_fix_attempts=_int(g("MAX_CHECK_FIX_ATTEMPTS"), 2, 0),
+        max_implementation_attempts=_int(g("MAX_IMPLEMENTATION_ATTEMPTS"), 4, 1),
+        max_blocked_subtasks=_int(g("MAX_BLOCKED_SUBTASKS"), 3, 1),
+        assignment_negotiation=_bool(g("ASSIGNMENT_NEGOTIATION"), True),
+        assignment_rules_file=_path(g("ASSIGNMENT_RULES_FILE"), BASE_DIR / "config" / "assignment_rules.json"),
+        checks_file=_path(g("CHECKS_FILE"), BASE_DIR / "config" / "checks.json"),
         file_lock_ttl_seconds=_int(g("FILE_LOCK_TTL_SECONDS"), 1800, 5),
         file_lock_wait_seconds=_int(g("FILE_LOCK_WAIT_SECONDS"), 60, 0),
         context_max_chars=_int(g("CONTEXT_MAX_CHARS"), 40000, 1000),

@@ -102,6 +102,7 @@ def test_error_status_quota_nonzero_and_invalid(make_settings, monkeypatch):
         monkeypatch.setenv("FAKE_AGY_MODE", mode)
         with pytest.raises(exc):
             a.run("x", context_key="c", run_id=f"r-{mode}")
+        a.clear_quota()  # v0.4: erro de cota abre cooldown persistido; limpamos para testar o próximo modo
 
 
 def test_noisy_output_still_parsed(make_settings, monkeypatch):

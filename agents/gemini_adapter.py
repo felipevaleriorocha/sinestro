@@ -4,8 +4,11 @@ Contrato validado no ambiente:
     agy -p "PROMPT" --model gemini-4-argon-high --output-format json
 Retorno JSON: conversation_id, status, response, duration_seconds, num_turns, usage.
 
-Flags adicionais (nível de raciocínio, retomada de conversa) só são usadas se
-aparecerem em `agy --help` ou forem configuradas explicitamente no .env.
+Flags adicionais só são usadas se aparecerem em `agy --help` (sem consumir tokens):
+  --effort        nível de raciocínio (AGY_EFFORT)
+  --conversation  retomada de conversa por ID
+  --mode          plan para skills somente leitura (AGY_REVIEW_MODE); AGY_IMPLEMENT_MODE para implementar
+  --add-dir       libera a pasta runtime/prompts quando o prompt vai por arquivo
 """
 from __future__ import annotations
 
@@ -18,7 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agents.base import (
-    AgentAuthError, AgentBackend, AgentCancelledError, AgentHealth, AgentResponseError, AgentResult,
+    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth, AgentResponseError, AgentResult,
     AgentTimeoutError, AgentUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
 from core.config import Settings
@@ -31,7 +34,7 @@ EFFORT_FLAG_CANDIDATES = ("--effort", "--reasoning-effort", "--thinking-level")
 RESUME_FLAG_CANDIDATES = ("--conversation", "--conversation-id")
 # cmd.exe interpreta estes caracteres em argumentos de arquivos .cmd/.bat.
 CMD_UNSAFE = re.compile(r'[\r\n"%^&|<>!]')
-INLINE_LIMIT_EXE = 30000
+INLINE_LIMIT_EXE = 24000  # limite do CreateProcess é 32767 caracteres para a linha inteira
 INLINE_LIMIT_CMD = 7000
 
 
@@ -103,6 +106,7 @@ class GeminiAdapter(AgentBackend):
         self._help_checked_at = 0.0
         self._cancel_events: dict[str, threading.Event] = {}
         self._lock = threading.Lock()
+        self._quota = QuotaCooldown(settings.runtime_dir / "gemini_state.json", settings.agy_model, settings.agy_quota_cooldown_minutes)
 
     # ---------------------------------------------------------------- binário
     @property
@@ -156,6 +160,10 @@ class GeminiAdapter(AgentBackend):
             return self.settings.agy_resume_flag
         return next((f for f in RESUME_FLAG_CANDIDATES if self._flag_supported(f)), None)
 
+    def mode_for(self, options: dict) -> str:
+        read_only = options.get("read_only", options.get("skill") in READ_ONLY_SKILLS)
+        return (options.get("mode") or (self.settings.agy_review_mode if read_only else self.settings.agy_implement_mode) or "").strip()
+
     # ---------------------------------------------------------------- comando
     def build_command(self, prompt: str, run_id: str, options: dict | None = None) -> tuple[list[str], Path | None]:
         options = options or {}
@@ -175,6 +183,14 @@ class GeminiAdapter(AgentBackend):
             flag = self.resume_flag()
             if flag:
                 cmd += [flag, str(conversation_id)]
+        mode = self.mode_for(options)
+        if mode:
+            if self._flag_supported("--mode"):
+                cmd += ["--mode", mode]
+            else:
+                log.warning("Modo '%s' não aplicado: `agy --help` não anuncia --mode (restrição fica só no prompt).", mode)
+        if prompt_file is not None and self._flag_supported("--add-dir"):
+            cmd += ["--add-dir", str(prompt_file.parent.resolve())]
         return cmd, prompt_file
 
     def _prompt_argument(self, prompt: str, run_id: str, prefix: list[str]) -> tuple[str, Path | None]:
@@ -198,8 +214,25 @@ class GeminiAdapter(AgentBackend):
         return short, file
 
     # ---------------------------------------------------------------- execução
+    # ---------------------------------------------------------------- quota
+    def unavailable_reason(self) -> str | None:
+        return self._quota.reason()
+
+    def clear_quota(self) -> None:
+        self._quota.clear()
+
     def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+        try:
+            return self._run(prompt, context_key=context_key, run_id=run_id, options=options)
+        except QuotaExceededError as exc:
+            self._quota.mark(str(exc), exc.retry_after_seconds)
+            raise
+
+    def _run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
         options = dict(options or {})
+        reason = self._quota.reason()
+        if reason:
+            raise QuotaExceededError(reason)
         if not self.settings.project_root.is_dir():
             raise AgentUnavailableError("PROJECT_ROOT não existe. Confira o caminho no .env.")
         resume = self.resume_flag() is not None
@@ -276,6 +309,13 @@ class GeminiAdapter(AgentBackend):
         checks["effort_flag"] = self.effort_flag()
         checks["resume_flag"] = self.resume_flag()
         checks["validated_flags"] = ["-p", "--model", "--output-format json"]
+        checks["mode_flag"] = self._flag_supported("--mode")
+        checks["read_only_mode"] = (self.settings.agy_review_mode or None) if checks["mode_flag"] else None
+        checks["implement_mode"] = self.settings.agy_implement_mode or None
+        checks["add_dir_flag"] = self._flag_supported("--add-dir")
+        quota = self._quota.reason()
+        if quota:
+            return AgentHealth(self.name, False, "quota_exceeded", quota, self.model, checks)
         ok = checks["help_ok"] and checks["project_root_exists"]
         detail = "CLI encontrado (verificação sem chamada ao modelo)." if ok else "Verifique PROJECT_ROOT e o AGY_BIN."
         return AgentHealth(self.name, ok, "ok" if ok else "degraded", detail, self.model, checks)

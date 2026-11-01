@@ -32,32 +32,41 @@ class AgentDefinition:
 
 
 SKILL_PLAN = SkillDef("plan_feature", "Planejar funcionalidade",
-                      "Analisa o pedido e o contexto do projeto e devolve um plano JSON com subtarefas, arquivos, critérios e restrições.",
+                      "Analisa o pedido e o contexto do projeto e devolve um plano JSON com subtarefas, arquivos, critérios, "
+                      "restrições e uma PROPOSTA de atribuição (assigned_to + motivo) por subtarefa.",
                       ("planning", "architecture"), ("Planeje o sistema de evolução AFK do Mundo 1",))
-SKILL_REVIEW = SkillDef("review_implementation", "Revisar implementação",
-                        "Revisa o relatório e os arquivos alterados; aprova, solicita ajustes, questiona decisões ou rejeita com justificativa.",
-                        ("review", "quality"))
-SKILL_FINAL = SkillDef("final_review", "Revisão final", "Avalia o resultado consolidado do workflow.", ("review",))
+SKILL_ASSIGN = SkillDef("respond_assignment", "Responder atribuição",
+                        "Aceita ou contesta (com motivo) a atribuição proposta para cada subtarefa, em um único turno.",
+                        ("planning", "negotiation"))
 SKILL_IMPLEMENT = SkillDef("implement_task", "Implementar subtarefa",
                            "Implementa/corrige scripts Luau e mecânicas de RPG conforme objetivo, contexto, arquivos, critérios e restrições; "
                            "devolve resumo, arquivos modificados, decisões técnicas, problemas e resultado.",
                            ("luau", "roblox", "rpg", "bugfix", "refactor"))
+SKILL_REVIEW = SkillDef("review_implementation", "Revisar implementação do outro agente",
+                        "Revisa, em modo somente leitura, o trabalho do OUTRO agente com checklist (critérios de aceitação, APIs do Roblox, "
+                        "casos de borda, segurança cliente/servidor) e achados com evidência (arquivo, linha e trecho).",
+                        ("review", "quality"))
+SKILL_FINAL = SkillDef("final_review", "Revisão final", "Avalia o resultado consolidado do workflow.", ("review",))
+
+SYMMETRIC_SKILLS = (SKILL_PLAN, SKILL_ASSIGN, SKILL_IMPLEMENT, SKILL_REVIEW, SKILL_FINAL)
 
 AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
     "gemini": AgentDefinition(
         name="gemini",
         display_name="Gemini 4 Argon High — Tech Lead",
         role="CTO / Tech Lead",
-        description="Planeja funcionalidades, analisa arquitetura, distribui tarefas, define contratos, revisa código e solicita correções.",
-        skills=(SKILL_PLAN, SKILL_REVIEW, SKILL_FINAL, SKILL_IMPLEMENT),
+        description="Mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes. Planeja, implementa e revisa; "
+                    "nunca revisa o próprio trabalho.",
+        skills=SYMMETRIC_SKILLS,
         provider="Google (via Antigravity CLI)",
     ),
     "deepseek": AgentDefinition(
         name="deepseek",
         display_name="DeepSeek V4.1 Flash Free — Senior Developer",
         role="Senior Developer",
-        description="Implementa sistemas Luau e mecânicas de RPG, cria e corrige scripts, resolve bugs e refatora código.",
-        skills=(SKILL_IMPLEMENT,),
+        description="Mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração. Planeja, implementa e revisa; "
+                    "nunca revisa o próprio trabalho.",
+        skills=SYMMETRIC_SKILLS,
         provider="DeepSeek (via OpenCode)",
     ),
 }

@@ -53,7 +53,7 @@ def test_review_requests_changes_then_approves(harness, workspace):
             assert d["subtasks"][0]["review_cycles"] == 2
             impl = [c for c in b["deepseek"].calls if c["skill"] == "implement_task"]
             assert len(impl) == 2
-            assert "REVISÃO DO TECH LEAD" in impl[1]["prompt"] and "ajuste simulado" in impl[1]["prompt"]
+            assert "REVISÃO DE Gemini" in impl[1]["prompt"] and "ajuste simulado" in impl[1]["prompt"]
             events = [e["event"] for e in d["events"]]
             assert "correction_requested" in events and "review_approved" in events
             msgs = (await h.client.get(f"/tasks/{wf}/messages")).json()
