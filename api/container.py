@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 import httpx
@@ -17,7 +17,7 @@ from communication.a2a_client import A2AAgentClient
 from communication.a2a_server import agent_base_path
 from core.agent import Agent
 from core.capabilities import CapabilityRegistry, ModelCapability
-from core.config import Settings
+from core.config import Settings, update_env_variable
 from core.domain import DomainProfile
 from core.providers import Provider
 from database.repository import Repository
@@ -204,3 +204,19 @@ def build_container(
         agents=agents,
         capability_registry=capability_registry,
     )
+
+
+def update_auto_approve_permissions(container: Container, enabled: bool) -> Settings:
+    """Atualiza o parâmetro agy_auto_approve_permissions em memória e persiste no .env."""
+    update_env_variable("AGY_AUTO_APPROVE_PERMISSIONS", "true" if enabled else "false")
+    os.environ["AGY_AUTO_APPROVE_PERMISSIONS"] = "true" if enabled else "false"
+
+    new_settings = replace(container.settings, agy_auto_approve_permissions=enabled)
+    container.settings = new_settings
+    if hasattr(container, "coordinator") and container.coordinator is not None:
+        container.coordinator.s = new_settings
+    gemini_backend = container.backends.get("gemini")
+    if gemini_backend is not None and hasattr(gemini_backend, "settings"):
+        gemini_backend.settings = new_settings
+    return new_settings
+

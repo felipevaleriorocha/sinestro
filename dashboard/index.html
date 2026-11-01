@@ -14,6 +14,10 @@ a{color:var(--blue);cursor:pointer;text-decoration:none} a:hover{text-decoration
 .banner{display:none;padding:6px 20px;font-weight:600;background:var(--warn);color:#111}
 header{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
 .brand{font-weight:600;flex:1} #nav{display:flex;gap:6px}
+.auto-approve-toggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none;padding:4px 10px;border-radius:8px;border:1px solid var(--line);background:var(--raised);transition:all .2s ease}
+.auto-approve-toggle:hover{border-color:var(--blue);color:var(--text)}
+.auto-approve-toggle input[type="checkbox"]{cursor:pointer;accent-color:var(--green);width:14px;height:14px;margin:0}
+.auto-approve-toggle.active{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,var(--line));background:color-mix(in srgb,var(--green) 10%,var(--raised))}
 #nav button,.tnav button{background:none;color:var(--muted)} #nav button.on{background:var(--raised);color:var(--text)}
 main{max-width:1000px;margin:0 auto;padding:18px 20px 40px} #tech{max-width:1400px}
 button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
@@ -89,6 +93,10 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
 <header>
   <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
+  <label class="auto-approve-toggle" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
+    <input type="checkbox" id="autoApproveToggle" onchange="toggleAutoApprove(this.checked)">
+    <span>Auto-aprovar</span>
+  </label>
   <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
   <span id="health" class="muted"></span>
 </header>
@@ -239,8 +247,31 @@ function view(v){ vw=v; $('#home').hidden=v!=='home'; $('#tech').hidden=v!=='tec
 
 /* ---------- Dados ---------- */
 async function loadHealth(){ try{ const h = await api('/health'); $('#mockBanner').style.display = h.mock_mode?'block':'none'; $('#ver').textContent = 'v'+h.version;
-  $('#health').innerHTML = `workspace ${h.project_root_exists?pill('ok'):pill('failed')} git ${h.git_repo?pill('ok'):pill('blocked')}`; }catch(e){ $('#health').textContent='API indisponível'; }
+  $('#health').innerHTML = `workspace ${h.project_root_exists?pill('ok'):pill('failed')} git ${h.git_repo?pill('ok'):pill('blocked')}`;
+  if(typeof h.agy_auto_approve_permissions === 'boolean') updateAutoApproveUI(h.agy_auto_approve_permissions);
+}catch(e){ $('#health').textContent='API indisponível'; }
   try{ const c = await api('/checks/status'); $('#checksBanner').style.display = c.any_active?'none':'block'; }catch(e){} }
+async function toggleAutoApprove(checked){
+  const toggle = $('#autoApproveToggle');
+  try{
+    const res = await api('/settings/auto-approve', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ enabled: checked })
+    });
+    updateAutoApproveUI(res.enabled);
+    toast(res.enabled ? 'Auto-aprovação ativada (salvo no .env)' : 'Auto-aprovação desativada (salvo no .env)');
+  }catch(e){
+    if(toggle) toggle.checked = !checked;
+    toast('Erro ao alterar auto-aprovação: ' + (e.message || e));
+  }
+}
+function updateAutoApproveUI(enabled){
+  const toggle = $('#autoApproveToggle');
+  const wrap = $('#autoApproveToggleWrap');
+  if(toggle) toggle.checked = !!enabled;
+  if(wrap) wrap.classList.toggle('active', !!enabled);
+}
 async function loadAgents(){ try{ AG = await api('/agents'); }catch(e){ return; } await loadActivity(); }
 async function check(name, deep){ try{ await api(`/agents/${name}/check?deep=${deep}`, {method:'POST'}); }catch(e){ toast(e.message); } loadAgents(); }
 async function checkAll(deep){ for (const n of ['gemini','deepseek']) await check(n, deep); }

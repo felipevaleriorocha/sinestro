@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from communication.a2a_server import agent_base_path, card_to_dict
+from api.container import update_auto_approve_permissions
 from orchestrator.assignment import other
 from orchestrator.dependency_analyzer import DependencyAnalyzer
 from orchestrator.schemas import AssignmentDecision
@@ -39,6 +40,11 @@ class FinalReviewDecision(BaseModel):
 class HumanDecision(BaseModel):
     action: Literal["approve", "retry", "reassign", "reject"]
     note: str = Field(default="", max_length=4000)
+
+
+class AutoApproveRequest(BaseModel):
+    enabled: bool
+
 
 
 def C(request: Request):
@@ -392,4 +398,18 @@ def clear_agent_quota(name: str, request: Request) -> dict:
         raise HTTPException(400, "Agente desconhecido ou sem controle de cota.")
     backend.clear_quota()
     return {"ok": True, "agent": name}
+
+
+@router.get("/settings/auto-approve", tags=["Sistema"])
+def get_auto_approve_setting(request: Request) -> dict[str, Any]:
+    c = C(request)
+    return {"enabled": bool(c.settings.agy_auto_approve_permissions)}
+
+
+@router.post("/settings/auto-approve", tags=["Sistema"])
+def update_auto_approve_setting(body: AutoApproveRequest, request: Request) -> dict[str, Any]:
+    c = C(request)
+    new_settings = update_auto_approve_permissions(c, body.enabled)
+    return {"ok": True, "enabled": new_settings.agy_auto_approve_permissions}
+
 

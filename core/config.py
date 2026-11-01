@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
@@ -246,4 +247,36 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         mcp_config_file=_path(g("MCP_CONFIG_FILE"), BASE_DIR / "config" / "mcp_servers.json"),
         vector_store_file=_path(g("VECTOR_STORE_FILE"), BASE_DIR / "runtime" / "vector_store.db"),
     )
+
+
+def update_env_variable(key: str, value: str, env_file: Path | None = None) -> bool:
+    """Atualiza ou adiciona uma variável de ambiente no arquivo .env mantendo comentários e formatação."""
+    target = env_file or (BASE_DIR / ".env")
+    pattern = re.compile(rf"^\s*(?:export\s+)?{re.escape(key)}\s*=.*$", re.IGNORECASE)
+    new_line = f"{key}={value}\n"
+
+    if not target.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(new_line, encoding="utf-8")
+        return True
+
+    lines = target.read_text(encoding="utf-8-sig").splitlines(keepends=True)
+    found = False
+    updated_lines: list[str] = []
+
+    for line in lines:
+        if pattern.match(line):
+            updated_lines.append(new_line)
+            found = True
+        else:
+            updated_lines.append(line)
+
+    if not found:
+        if updated_lines and not updated_lines[-1].endswith("\n"):
+            updated_lines[-1] = updated_lines[-1] + "\n"
+        updated_lines.append(new_line)
+
+    target.write_text("".join(updated_lines), encoding="utf-8")
+    return True
+
 

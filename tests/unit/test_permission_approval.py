@@ -209,3 +209,79 @@ def test_coordinator_runtime_permission_denied_recovery(harness, workspace):
             assert d2["status"] == "completed"
 
     run(go())
+
+
+def test_update_env_variable(tmp_path):
+    from core.config import update_env_variable
+
+    env_path = tmp_path / ".env"
+    env_path.write_text("# Config\nFOO=bar\nAGY_AUTO_APPROVE_PERMISSIONS=false\n# Fim\n", encoding="utf-8")
+
+    # Atualiza variável existente preservando comentários
+    assert update_env_variable("AGY_AUTO_APPROVE_PERMISSIONS", "true", env_file=env_path) is True
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    assert "# Config" in lines
+    assert "FOO=bar" in lines
+    assert "AGY_AUTO_APPROVE_PERMISSIONS=true" in lines
+    assert "# Fim" in lines
+
+    # Adiciona nova variável
+    assert update_env_variable("NEW_KEY", "value123", env_file=env_path) is True
+    assert "NEW_KEY=value123" in env_path.read_text(encoding="utf-8")
+
+    # Cria arquivo novo se não existir
+    non_existing = tmp_path / "subdir" / ".env"
+    assert update_env_variable("KEY", "val", env_file=non_existing) is True
+    assert non_existing.read_text(encoding="utf-8") == "KEY=val\n"
+
+
+def test_auto_approve_toggle_api_and_env_persistence(harness, tmp_path):
+    from unittest.mock import patch
+
+    async def go():
+        env_file = tmp_path / ".env"
+        env_file.write_text("SOME_VAR=123\nAGY_AUTO_APPROVE_PERMISSIONS=false\n", encoding="utf-8")
+
+        b = build_mock_backends()
+        async with harness(b, AGY_AUTO_APPROVE_PERMISSIONS="false") as h:
+            container = h.app.state.container
+
+            # 1. GET inicial
+            res = await h.client.get("/settings/auto-approve")
+            assert res.status_code == 200
+            assert res.json()["enabled"] is False
+
+            # 2. POST ligando
+            with patch("core.config.BASE_DIR", tmp_path):
+                post_res = await h.client.post("/settings/auto-approve", json={"enabled": True})
+                assert post_res.status_code == 200
+                assert post_res.json() == {"ok": True, "enabled": True}
+
+                # Verifica em memória
+                assert container.settings.agy_auto_approve_permissions is True
+                assert container.coordinator.s.agy_auto_approve_permissions is True
+                if "gemini" in container.backends and hasattr(container.backends["gemini"], "settings"):
+                    assert container.backends["gemini"].settings.agy_auto_approve_permissions is True
+
+                # Verifica no arquivo .env
+                content = (tmp_path / ".env").read_text(encoding="utf-8")
+                assert "AGY_AUTO_APPROVE_PERMISSIONS=true" in content
+                assert "SOME_VAR=123" in content
+
+                # Verifica no health
+                health_res = await h.client.get("/health")
+                assert health_res.status_code == 200
+                assert health_res.json()["agy_auto_approve_permissions"] is True
+
+                # 3. POST desligando
+                post_res2 = await h.client.post("/settings/auto-approve", json={"enabled": False})
+                assert post_res2.status_code == 200
+                assert post_res2.json() == {"ok": True, "enabled": False}
+
+                assert container.settings.agy_auto_approve_permissions is False
+                assert container.coordinator.s.agy_auto_approve_permissions is False
+                content2 = (tmp_path / ".env").read_text(encoding="utf-8")
+                assert "AGY_AUTO_APPROVE_PERMISSIONS=false" in content2
+
+    run(go())
+
