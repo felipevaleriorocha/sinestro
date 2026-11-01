@@ -13,7 +13,9 @@ def main() -> int:
     if s.host not in {"127.0.0.1", "localhost", "::1"}:
         print(f"Recusado: ORCH_HOST={s.host}. O orquestrador só escuta em loopback.", file=sys.stderr)
         return 2
-    uvicorn.run("app:app", host=s.host, port=s.port, log_level="info")
+    # access_log=False: oculta as linhas "GET /agents 200 OK" geradas pelo polling do painel.
+    # Erros, avisos e eventos do orquestrador continuam no terminal e em logs\orchestrator.log.
+    uvicorn.run("app:app", host=s.host, port=s.port, log_level="info", access_log=False)
     return 0
 
 
