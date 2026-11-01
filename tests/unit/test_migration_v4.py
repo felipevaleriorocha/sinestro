@@ -67,3 +67,22 @@ def test_v02_db_gets_backup_v2_and_migrates(make_settings):
 def test_new_db_has_no_backup(make_settings):
     s = make_settings()
     assert Repository(s.db_path).backup_path is None
+
+
+def test_v4_db_gets_backup_v4_and_final_review_columns(make_settings):
+    import database.models as m
+    s = make_settings()
+    s.db_path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(s.db_path)
+    for ddl in m.BASE_TABLES:
+        con.execute(ddl)
+    m._add_columns(con, m.ADDED_COLUMNS)
+    m._add_columns(con, m.ADDED_COLUMNS_V4)
+    con.execute("INSERT INTO schema_meta VALUES('schema_version','4')")
+    con.execute("INSERT INTO tasks(id, goal, status, created_at, updated_at) VALUES('wf4','v0.4','completed','t','t')")
+    con.commit()
+    con.close()
+    repo = Repository(s.db_path)
+    assert repo.backup_path.name == "orchestrator.db.bak-v4"
+    wf = repo.get_workflow("wf4")
+    assert wf["goal"] == "v0.4" and "final_review_state" in wf and wf["final_review_state"] is None

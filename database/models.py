@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 BASE_TABLES = [
     # --- v0.2 (preservadas) ---
@@ -182,6 +182,15 @@ INDEXES = [
 ]
 
 
+# Schema 5: estado da revisão final (nunca silencioso).
+ADDED_COLUMNS_V5 = {
+    "tasks": [
+        ("final_review_state", "TEXT"),
+        ("final_review_json", "TEXT"),
+    ],
+}
+
+
 def read_schema_version(db_path: Path) -> int | None:
     """Versão do banco existente: None = banco novo/vazio; 2 = v0.2 (sem schema_meta); 3+ = schema_meta."""
     if not db_path.is_file() or db_path.stat().st_size == 0:
@@ -233,6 +242,7 @@ def migrate(con: sqlite3.Connection) -> None:
         con.execute(ddl)
     _add_columns(con, ADDED_COLUMNS)
     _add_columns(con, ADDED_COLUMNS_V4)
+    _add_columns(con, ADDED_COLUMNS_V5)
     # Linhas antigas: quem implementou era `agent`. Revisor fica NULL (não inventamos histórico).
     con.execute("UPDATE subtasks SET assigned_to=agent WHERE assigned_to IS NULL")
     for ddl in INDEXES:

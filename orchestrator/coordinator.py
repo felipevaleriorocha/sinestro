@@ -40,7 +40,7 @@ from orchestrator.git_integration import GitInspector, _sha
 from orchestrator.schemas import (
     AssignmentDecision, AssignmentResponse, ImplementationReport, Plan, ReviewResult,
 )
-from orchestrator.task_manager import ST, WF, TaskManager
+from orchestrator.task_manager import FR, ST, WF, TaskManager, final_status
 
 log = logging.getLogger("orchestrator.coordinator")
 
@@ -149,11 +149,18 @@ class Coordinator:
             paused = await self._execute_subtasks(wf_id, goal, mcp_status)
 
             subs = self.tasks.subtasks(wf_id)
-            final_review = None
-            if (self.s.final_review and subs and all(s["status"] in ST.DONE for s in subs)
-                    and not self.tasks.cancel_requested(wf_id)):
-                final_review = await self._final_review(wf_id, goal, subs)
-            status = self.tasks.final_status(subs, self.tasks.cancel_requested(wf_id), paused)
+            final_review, fr_state = None, FR.NOT_REACHED
+            if subs and all(s["status"] in ST.DONE for s in subs) and not self.tasks.cancel_requested(wf_id):
+                if not self.s.final_review:
+                    fr_state = FR.DISABLED
+                    self.tasks.event(wf_id, "orchestrator", "final_review_disabled", "FINAL_REVIEW=false: revisão final desligada.",
+                                     "warning")
+                else:
+                    final_review = await self._final_review(wf_id, goal, subs)
+                    fr_state = FR.SKIPPED if final_review is None else (
+                        FR.PASSED if final_review.get("verdict") == "approved" else final_review.get("verdict"))
+            self.repo.update_workflow(wf_id, final_review_state=fr_state)
+            status = final_status(subs, self.tasks.cancel_requested(wf_id), paused, fr_state)
             metrics = self._metrics(wf_id)
             self.repo.update_workflow(wf_id, metrics_json=metrics)
             self.tasks.event(wf_id, "orchestrator", "metrics", metrics)

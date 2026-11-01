@@ -75,7 +75,7 @@ class Repository:
 
     def update_workflow(self, workflow_id: str, **fields: Any) -> None:
         allowed = {"status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested",
-                   "planned_by", "planned_by_fallback", "metrics_json", "mode"}
+                   "planned_by", "planned_by_fallback", "metrics_json", "mode", "final_review_state", "final_review_json"}
         sets, params = ["updated_at=?"], [utc_now()]
         for key, value in fields.items():
             if key not in allowed:
@@ -96,14 +96,14 @@ class Repository:
         if not row:
             return None
         d = dict(row)
-        for k in ("result_json", "context_sources_json", "plan_json", "metrics_json"):
+        for k in ("result_json", "context_sources_json", "plan_json", "metrics_json", "final_review_json"):
             d[k.replace("_json", "")] = _loads(d.pop(k, None))
         d["cancel_requested"] = bool(d.get("cancel_requested"))
         d["planned_by_fallback"] = bool(d.get("planned_by_fallback"))
         return d
 
     def list_workflows(self, limit: int = 50, status: str | None = None) -> list[dict]:
-        sql = "SELECT id, goal, status, phase, mode, created_at, updated_at, error, version FROM tasks"
+        sql = "SELECT id, goal, status, phase, mode, created_at, updated_at, error, version, final_review_state FROM tasks"
         params: list[Any] = []
         if status:
             sql += " WHERE status=?"

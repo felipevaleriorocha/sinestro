@@ -70,6 +70,7 @@ def get_task(task_id: str, request: Request) -> dict[str, Any]:
         "id": wf["id"], "goal": wf["goal"], "status": wf["status"], "phase": wf.get("phase"), "mode": wf.get("mode"),
         "created_at": wf["created_at"], "updated_at": wf["updated_at"], "result": wf.get("result"), "error": wf.get("error"),
         "plan": wf.get("plan"), "context": wf.get("context_sources"), "cancel_requested": wf.get("cancel_requested"),
+        "final_review_state": wf.get("final_review_state"), "final_review": wf.get("final_review"),
         "planned_by": wf.get("planned_by"), "planned_by_fallback": wf.get("planned_by_fallback"), "metrics": wf.get("metrics"),
         "running": c.coordinator.is_running(task_id),
         "subtasks": c.tasks.subtasks(task_id),

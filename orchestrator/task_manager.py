@@ -6,7 +6,7 @@ from typing import Any
 
 from database.repository import Repository
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 
 
 class WF:
@@ -23,7 +23,9 @@ class WF:
     INTERRUPTED = "interrupted"    # serviço reiniciado no meio
     NEEDS_HUMAN = "needs_human"    # discordância após os ciclos / evidência não verificável; aguarda decisão humana
     PAUSED = "paused"              # limite de subtarefas bloqueadas atingido
-    RESUMABLE = {BLOCKED, FAILED, INTERRUPTED, COMPLETED_WITH_ISSUES, PLANNED, CANCELED, NEEDS_HUMAN, PAUSED}
+    COMPLETED_UNREVIEWED = "completed_unreviewed"  # subtarefas aprovadas, mas a revisão final não aconteceu
+    RESUMABLE = {BLOCKED, FAILED, INTERRUPTED, COMPLETED_WITH_ISSUES, PLANNED, CANCELED, NEEDS_HUMAN, PAUSED,
+                 COMPLETED_UNREVIEWED}
     ACTIVE = {QUEUED, PLANNING, DELEGATING, REVIEWING}
 
 
@@ -45,6 +47,51 @@ class ST:
     FINAL = {APPROVED, COMPLETED, REJECTED, NEEDS_ATTENTION, BLOCKED, FAILED, CANCELED, NEEDS_HUMAN}
     DEP_FAILED = {REJECTED, FAILED, CANCELED}
     BLOCKING = {BLOCKED, AWAITING_REVIEW}
+
+
+class FR:
+    """Estado da revisão final (`final_review_state`), sempre gravado — nenhum estado final silencioso."""
+    PASSED = "passed"
+    DISABLED = "disabled"                    # FINAL_REVIEW=false (escolha do usuário; selo no painel)
+    SKIPPED = "skipped"                      # revisor sem cota/indisponível
+    FAILED = "failed"                        # erro técnico na chamada/resposta
+    CHANGES_REQUESTED = "changes_requested"
+    REJECTED = "rejected"
+    UNVERIFIED = "unverified"                # achados sem evidência mesmo após a reformulação
+    INVALIDATED = "invalidated"              # revisor alterou arquivos durante a revisão somente leitura
+    NOT_REACHED = "not_reached"              # nem todas as subtarefas foram aprovadas; revisão final não se aplica
+    ACCEPTED_BY_HUMAN = "accepted_by_human"  # usuário aceitou apesar do parecer
+    REJECTED_BY_HUMAN = "rejected_by_human"  # usuário confirmou a rejeição
+    CLEAN = {PASSED, DISABLED, ACCEPTED_BY_HUMAN}
+    UNREVIEWED = {SKIPPED, FAILED}
+    NEEDS_HUMAN = {CHANGES_REQUESTED, REJECTED, UNVERIFIED, INVALIDATED}
+
+
+def final_status(subtasks: list[dict], cancelled: bool, paused: bool, final_review_state: str | None) -> str:
+    """Decisão ÚNICA do status final do workflow (função pura, sem I/O).
+
+    `completed` só é possível com todas as subtarefas concluídas E revisão final passed/disabled/accepted_by_human.
+    """
+    statuses = [s["status"] for s in subtasks]
+    if cancelled or ST.CANCELED in statuses:
+        return WF.CANCELED
+    if statuses and all(s in ST.DONE for s in statuses):
+        if final_review_state in FR.CLEAN:
+            return WF.COMPLETED
+        if final_review_state in FR.NEEDS_HUMAN:
+            return WF.NEEDS_HUMAN
+        if final_review_state == FR.REJECTED_BY_HUMAN:
+            return WF.FAILED
+        return WF.COMPLETED_UNREVIEWED  # skipped, failed, None ou qualquer valor desconhecido
+    if ST.NEEDS_HUMAN in statuses:
+        return WF.NEEDS_HUMAN
+    if paused:
+        return WF.PAUSED
+    if any(s in ST.BLOCKING or s == ST.PENDING for s in statuses):
+        return WF.BLOCKED
+    if any(s in ST.DONE for s in statuses):
+        return WF.COMPLETED_WITH_ISSUES
+    return WF.FAILED
 
 
 class TaskManager:
@@ -104,20 +151,3 @@ class TaskManager:
                 self.repo.update_subtask(s["id"], status=ST.PENDING, error=None)
                 n += 1
         return n
-
-    @staticmethod
-    def final_status(subtasks: list[dict], cancel_requested: bool, paused: bool = False) -> str:
-        statuses = [s["status"] for s in subtasks]
-        if cancel_requested or ST.CANCELED in statuses:
-            return WF.CANCELED
-        if statuses and all(s in ST.DONE for s in statuses):
-            return WF.COMPLETED
-        if ST.NEEDS_HUMAN in statuses:
-            return WF.NEEDS_HUMAN
-        if paused:
-            return WF.PAUSED
-        if any(s in ST.BLOCKING or s == ST.PENDING for s in statuses):
-            return WF.BLOCKED
-        if any(s in ST.DONE for s in statuses):
-            return WF.COMPLETED_WITH_ISSUES
-        return WF.FAILED
