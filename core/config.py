@@ -106,6 +106,7 @@ class Settings:
     agy_review_mode: str = "plan"     # --mode para planejar/revisar (somente leitura), se `agy --help` anunciar --mode
     agy_implement_mode: str = ""      # --mode para implementar; vazio = comportamento padrão do agy (o validado)
     agy_quota_cooldown_minutes: int = 60
+    agy_auto_approve_permissions: bool = False
     opencode_review_agent: str = "Plan"  # agente somente leitura do OpenCode para planejar/revisar
 
     # Fluxo
@@ -158,6 +159,7 @@ class Settings:
             "agy_effort": self.agy_effort or None,
             "agy_review_mode": self.agy_review_mode or None,
             "agy_implement_mode": self.agy_implement_mode or None,
+            "agy_auto_approve_permissions": self.agy_auto_approve_permissions,
             "max_review_cycles": self.max_review_cycles,
             "max_check_fix_attempts": self.max_check_fix_attempts,
             "max_implementation_attempts": self.max_implementation_attempts,
@@ -218,6 +220,7 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         agy_review_mode=(_clean(g("AGY_REVIEW_MODE")) if g("AGY_REVIEW_MODE") is not None else "plan").lower(),
         agy_implement_mode=_clean(g("AGY_IMPLEMENT_MODE")).lower(),
         agy_quota_cooldown_minutes=_int(g("AGY_QUOTA_COOLDOWN_MINUTES"), 60, 0),
+        agy_auto_approve_permissions=_bool(g("AGY_AUTO_APPROVE_PERMISSIONS") or g("AGY_AUTO_APPROVE"), False),
         opencode_review_agent=_clean(g("OPENCODE_REVIEW_AGENT")) if g("OPENCODE_REVIEW_AGENT") is not None else "Plan",
         max_review_cycles=_int(g("MAX_REVIEW_CYCLES"), 2, 0),
         max_subtasks=_int(g("MAX_SUBTASKS"), 5, 1),

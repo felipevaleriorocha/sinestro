@@ -34,6 +34,8 @@ elif mode == "nonzero":
     sys.exit(3)
 elif mode == "empty":
     payload.update(response="")
+elif mode == "permission_denied":
+    payload.update(response="", denied_actions=[{"action": "command", "target": "bash"}])
 elif mode == "noisy":
     print("[warn] update available")
 print(json.dumps(payload))

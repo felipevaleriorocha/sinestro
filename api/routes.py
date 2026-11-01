@@ -160,8 +160,12 @@ def human_decision(task_id: str, subtask_id: str, body: HumanDecision, request: 
     decision = {"action": body.action, "note": body.note, "consumed": False}
     reset = {"review_cycles": 0, "check_fix_attempts": 0, "impl_attempts": 0}
     if body.action == "approve":
-        c.repo.update_subtask(subtask_id, status=ST.APPROVED, human_decision_json=decision, error=None)
-        c.decisions.accept_for_subtask(subtask_id)
+        if sub.get("result") is None:
+            decision["allow_permissions"] = True
+            c.repo.update_subtask(subtask_id, status=ST.PENDING, human_decision_json=decision, error=None)
+        else:
+            c.repo.update_subtask(subtask_id, status=ST.APPROVED, human_decision_json=decision, error=None)
+            c.decisions.accept_for_subtask(subtask_id)
     elif body.action == "reject":
         c.repo.update_subtask(subtask_id, status=ST.REJECTED, human_decision_json=decision, error=f"Rejeitada por decisão humana: {body.note}")
         c.decisions.reject_for_subtask(subtask_id)

@@ -14,6 +14,7 @@ from core.providers import (
     AgentConnectionError,
     AgentError,
     AgentHealth,
+    AgentPermissionError,
     AgentResponseError,
     AgentResult,
     AgentTimeoutError,

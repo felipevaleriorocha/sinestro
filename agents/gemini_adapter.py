@@ -21,7 +21,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from agents.base import (
-    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth, AgentResponseError, AgentResult,
+    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth,
+    AgentPermissionError, AgentResponseError, AgentResult,
     AgentTimeoutError, AgentUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
 from core.capabilities import ModelCapability, ModelSpec
@@ -79,8 +80,11 @@ def result_from_payload(payload: dict[str, Any], model: str) -> AgentResult:
         denied = payload.get("denied_actions") or []
         if denied:
             names = ", ".join(str(d.get("action") or d) if isinstance(d, dict) else str(d) for d in denied)
-            raise AgentResponseError(f"Antigravity terminou sem resposta: permissão negada pelo agy ({names}). "
-                                     "O agente tentou uma ação não permitida em modo não interativo.")
+            raise AgentPermissionError(
+                f"Antigravity terminou sem resposta: permissão negada pelo agy ({names}). "
+                "O agente tentou uma ação não permitida em modo não interativo.",
+                denied_actions=denied,
+            )
         raise AgentResponseError("Antigravity retornou status SUCCESS com resposta vazia.")
     duration = payload.get("duration_seconds")
     return AgentResult(
@@ -207,6 +211,11 @@ class GeminiProvider(Provider):
         effort = options.get("effort", self.settings.agy_effort)
         prompt_arg, prompt_file = self._prompt_argument(prompt, run_id, prefix)
         cmd = [*prefix, "-p", prompt_arg, "--model", model, "--output-format", "json"]
+        auto_approve = options.get("auto_approve_permissions")
+        if auto_approve is None:
+            auto_approve = self.settings.agy_auto_approve_permissions
+        if auto_approve and self._flag_supported("--dangerously-skip-permissions"):
+            cmd.append("--dangerously-skip-permissions")
         if effort:
             flag = self.effort_flag()
             if flag:

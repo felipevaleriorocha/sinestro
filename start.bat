@@ -1,10 +1,11 @@
 @echo off
 setlocal
-rem Copie este arquivo para a Area de Trabalho. Ele usa a pasta abaixo, nao a pasta onde o .bat esta.
-set "ORCH=C:\Users\Felipe\Downloads\roblox_orchestrator_starter"
 
-if not exist "%ORCH%\start.ps1" (
-    echo Pasta do orquestrador nao encontrada: %ORCH%
+rem Usa a pasta onde este .bat está localizado.
+set "ORCH=%~dp0"
+
+if not exist "%ORCH%start.ps1" (
+    echo Arquivo start.ps1 nao encontrado em: %ORCH%
     pause
     exit /b 1
 )

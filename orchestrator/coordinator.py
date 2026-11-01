@@ -449,6 +449,32 @@ class Coordinator:
                     self.tasks.event(wf_id, "orchestrator", "dependency_blocked", s["title"], "warning", s["id"])
                     continue
                 if all(d["status"] in ST.DONE for d in deps):  # dependência precisa estar APROVADA, não só implementada
+                    spec = s.get("spec") or {}
+                    requires_approval = bool(
+                        s.get("requires_approval")
+                        or spec.get("requires_approval")
+                        or s.get("requires_permission")
+                        or spec.get("requires_permission")
+                    )
+                    hd = s.get("human_decision") or {}
+                    has_approval = (
+                        self.s.agy_auto_approve_permissions
+                        or bool(hd.get("allow_permissions"))
+                        or hd.get("action") == "approve"
+                    )
+                    if requires_approval and not has_approval:
+                        escalation = {
+                            "code": "pre_execution_approval_required",
+                            "reason": f"A subtarefa '{s['title']}' requer aprovação humana antes da execução de comandos.",
+                            "agent": s.get("assigned_to") or s.get("agent"),
+                            "options": ["approve", "reject"],
+                        }
+                        self.repo.update_subtask(s["id"], status=ST.NEEDS_HUMAN, escalation_json=escalation,
+                                                 error="Aguardando aprovação humana prévia para execução.")
+                        self.tasks.event(wf_id, "orchestrator", "subtask_needs_approval",
+                                         f"Subtarefa {s['plan_id']} ({s['title']}) requer aprovação humana antes da execução.",
+                                         "warning", s["id"])
+                        continue
                     runnable.append(s)
             if not runnable:
                 return False
@@ -587,10 +613,20 @@ class Coordinator:
                 counters["impl_attempts"] += 1
                 self.repo.update_subtask(sid, status=ST.RUNNING, impl_attempts=counters["impl_attempts"])
                 before = await asyncio.to_thread(self.git.snapshot, files)
+
+                fresh_sub = self.repo.get_subtask(sid) or sub
+                hd = fresh_sub.get("human_decision") or {}
+                allow_permissions = (
+                    self.s.agy_auto_approve_permissions
+                    or bool(hd.get("allow_permissions"))
+                    or (hd.get("action") == "approve" and not fresh_sub.get("result"))
+                )
+
                 res = await self._delegate(
                     wf_id, sid, implementer, "implement_task",
                     {"goal": goal, "task": spec, "context_text": self.context.for_workflow(wf_id).text, "feedback": feedback,
-                     "cycle": counters["review_cycles"], "previous_results": previous, "mcp_status": mcp_status, "reviewer": reviewer},
+                     "cycle": counters["review_cycles"], "previous_results": previous, "mcp_status": mcp_status, "reviewer": reviewer,
+                     "agent_options": {"auto_approve_permissions": allow_permissions}},
                     summary=(f"Ajuste ({(feedback or {}).get('source', 'review')}): " if feedback else "Implementar: ") + sub["title"],
                     context_id=dev_ctx, reference_task_ids=refs)
                 dev_ctx, last_impl_task = res.context_id, res.task_id
@@ -817,6 +853,26 @@ class Coordinator:
 
     def _subtask_failure(self, wf_id: str, sid: str, agent: str, res: DelegationResult) -> None:
         code = res.error_code or res.state
+        is_permission_denied = (
+            code == "permission_denied"
+            or "permissão negada pelo agy" in (res.status_message or "").lower()
+            or "permissão negada" in (res.status_message or "").lower()
+            or "permission denied" in (res.status_message or "").lower()
+        )
+        if is_permission_denied:
+            msg = f"{agent} {res.skill}: permissão negada — {res.status_message[:800]}"
+            escalation = {
+                "code": "permission_denied",
+                "reason": res.status_message[:800],
+                "agent": agent,
+                "skill": res.skill,
+                "options": ["approve", "retry", "reassign", "reject"],
+                "note": "Ação bloqueada por falta de permissão não interativa. Aprove para conceder permissão de execução com agy.",
+            }
+            self.repo.update_subtask(sid, status=ST.NEEDS_HUMAN, escalation_json=escalation, error=msg)
+            self.tasks.event(wf_id, agent, "permission_approval_needed", msg, "warning", sid)
+            return
+
         if res.state == "canceled":
             status = ST.CANCELED
         elif code in UNAVAILABLE_CODES or res.state == "rejected":

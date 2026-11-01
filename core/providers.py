@@ -72,6 +72,16 @@ class AgentCancelledError(AgentError):
     code = "cancelled"
 
 
+class AgentPermissionError(AgentError):
+    """Ação requer aprovação/permissão não interativa."""
+    code = "permission_denied"
+    retryable = False
+
+    def __init__(self, message: str, denied_actions: list[Any] | None = None):
+        super().__init__(message)
+        self.denied_actions = denied_actions or []
+
+
 # ---------------------------------------------------------------- resultados e saúde
 @dataclass
 class AgentResult:

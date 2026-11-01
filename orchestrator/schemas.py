@@ -48,6 +48,8 @@ class PlannedTask(_Lenient):
     assigned_to: AgentName = "deepseek"    # PROPOSTA do planejador (turno 1); a decisão final é AssignmentDecision
     category: str = "other"
     skip_review: bool = False
+    requires_approval: bool = False
+    requires_permission: bool = False
     assignment_reason: str = ""
     title: str
     objective: str = ""
