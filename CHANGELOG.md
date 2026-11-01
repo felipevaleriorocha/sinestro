@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1 — Gestão de Permissões e Aprovação Humana Prévia
+- **Auto-aprovação configurável (`AGY_AUTO_APPROVE_PERMISSIONS`):** Suporte à flag `--dangerously-skip-permissions` no CLI do `agy`. Por padrão (`false`), o agente não executa ações com permissões elevadas sem autorização.
+- **Aprovação Prévia (`requires_approval` / `requires_permission`):** Subtarefas que exigem comandos no sistema ou privilégios de execução são pausadas em `needs_human` antes do início, evitando recusas não interativas.
+- **Recuperação de Erro de Permissão:** Quando uma chamada falha com permissão negada pelo `agy` (`AgentPermissionError` / `permission_denied`), a subtarefa transiciona para `needs_human` com aviso detalhado no painel em vez de quebrar o workflow.
+- **Fluxo de Decisão no Painel:** Ao clicar em `approve` para uma subtarefa sem resultado prévio, o sistema concede permissão (`allow_permissions=True`), retorna para `pending` e injeta a autorização ao retomar (`POST /tasks/{id}/resume`).
+- **Identidade Visual:** Atualização do logotipo da DeepSeek no painel com o ícone oficial (baleia azul).
+- **Iniciador (`start.bat`):** Caminho relativo dinâmico (`%~dp0`) para inicialização independente do diretório de instalação.
+
+## 0.5.0 — Evolução Arquitetural: Workspace Multi-Provider
+- **Fase 0 (Estabilização do Core):** Centralização estrita de retenção de locks em caso de processo sem confirmação de encerramento (timeout), ciclo de vida íntegro de `stage_log` e injeção isolada da política de dependências (`dependency_policy.json`).
+- **Fase 1 (Extração de Domínio Passivo):** Interface `DomainProfile` (`core/domain.py`) e domínio `roblox` desacoplados do núcleo; Core 100% agnóstico a linguagens e frameworks.
+- **Fase 2 (Abstração de Provedores):** Entidades `Provider`, `ModelSpec`, `ModelCapability` e `CapabilityRegistry` separadas de agentes e backends concretos.
+- **Fase 3 (Motor de Workflow Dinâmico):** `WorkflowDAG` e `WorkflowEngine` com ordenação topológica por ondas, execução flexível e suporte a saltos de etapas (ex.: sem revisão cruzada para assets).
+- **Fase 4 (Roteamento Inteligente e Workspace Unificado):** RAG local híbrido via SQLite (`VectorStore`), indexação automática do workspace, roteador de tarefas por custo/capacidade e relatório financeiro consolidado no painel.
+
 ## 0.4.2
 - Contratos aceitam `null` em campos opcionais (antes uma revisão aprovada com `"rejection_reason": null` era tratada
   como não estruturada e gastava uma revisão extra).
