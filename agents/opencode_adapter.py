@@ -18,6 +18,7 @@ from typing import Any
 import httpx
 
 from agents.base import (
+    parse_cooldown_seconds,
     READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentConnectionError, AgentHealth, AgentResponseError, AgentResult,
     AgentTimeoutError, ContractNotVerifiedError, ModelUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
@@ -421,10 +422,21 @@ class OpenCodeProvider(Provider):
         if reply["error"]:
             err_text = redact(json.dumps(reply["error"], ensure_ascii=False) if not isinstance(reply["error"], str) else reply["error"])
             if looks_like_quota_error(err_text):
-                self.mark_quota_exceeded(err_text)
-                raise QuotaExceededError(f"DeepSeek sem cota: {err_text[:300]}")
+                secs = parse_cooldown_seconds(err_text, default_seconds=3600)
+                self.mark_quota_exceeded(err_text, retry_after=secs)
+                raise QuotaExceededError(f"DeepSeek sem cota: {err_text[:300]}", retry_after_seconds=secs)
             if not reply["text"]:
                 raise AgentResponseError(f"OpenCode retornou erro na mensagem do assistente: {err_text[:800]}")
+
+        # Retry automático em resposta vazia (corrida wait vs persistência ou timing)
+        if not reply["text"]:
+            log.warning("OpenCode concluiu sem texto do assistente na 1ª leitura. Aguardando 1.5s e tentando novamente...")
+            time.sleep(1.5)
+            try:
+                retry_payload = self._call("session_messages", path_params={"session_id": session_id}, timeout=60)
+                reply = extract_assistant_reply(retry_payload, before)
+            except Exception as e:
+                log.warning("Falha na retentativa de leitura do OpenCode: %s", redact(e))
         if not reply["text"]:
             raise AgentResponseError("OpenCode concluiu sem texto do assistente.")
         return AgentResult(

@@ -6,12 +6,15 @@ subtarefas, constrói o DAG e produz grupos topológicos conservadores.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterable
 
 from orchestrator.file_locks import PathOutsideWorkspaceError, normalize_file
+
+log = logging.getLogger("orchestrator.dependency_analyzer")
 
 
 class DependencyClass(str, Enum):
@@ -89,8 +92,8 @@ class DependencyAnalyzer:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     policy_version = str(data.get("version") or policy_version)
                     mcp_parallel_safe = bool(data.get("mcp_parallel_safe", mcp_parallel_safe))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning("Falha ao carregar politica de dependencia em %s: %s", p, exc)
         self.policy_version = policy_version
         self.mcp_parallel_safe = mcp_parallel_safe
 

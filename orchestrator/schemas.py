@@ -115,6 +115,7 @@ class ImplementationReport(_Lenient):
     tests: list[str] = Field(default_factory=list)
     result: str = ""
     disputes: list[str] = Field(default_factory=list)  # contestações a achados do revisor (com motivo)
+    raw_text: str = ""
     structured: bool = True
 
     @field_validator("status", mode="before")
@@ -180,6 +181,7 @@ class ReviewResult(_Lenient):
     decisions: list[DecisionProposal] = Field(default_factory=list)
     plan_valid: bool | None = None          # só quando o plano foi feito por fallback
     plan_concerns: list[str] = Field(default_factory=list)
+    raw_text: str = ""
     structured: bool = True
 
     @field_validator("verdict", mode="before")

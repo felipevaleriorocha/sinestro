@@ -108,6 +108,9 @@ class Settings:
     agy_implement_mode: str = ""      # --mode para implementar; vazio = comportamento padrão do agy (o validado)
     agy_quota_cooldown_minutes: int = 60
     agy_auto_approve_permissions: bool = False
+    gemini_channel: str = "agy"  # agy | api | off
+    gemini_api_key: str = ""
+    gemini_api_model: str = "gemini-2.5-pro"
     opencode_review_agent: str = "Plan"  # agente somente leitura do OpenCode para planejar/revisar
 
     # Fluxo
@@ -222,6 +225,9 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         agy_implement_mode=_clean(g("AGY_IMPLEMENT_MODE")).lower(),
         agy_quota_cooldown_minutes=_int(g("AGY_QUOTA_COOLDOWN_MINUTES"), 60, 0),
         agy_auto_approve_permissions=_bool(g("AGY_AUTO_APPROVE_PERMISSIONS") or g("AGY_AUTO_APPROVE"), False),
+        gemini_channel=(_clean(g("GEMINI_CHANNEL")) or "agy").lower(),
+        gemini_api_key=_clean(g("GEMINI_API_KEY")),
+        gemini_api_model=_clean(g("GEMINI_API_MODEL")) or "gemini-2.5-pro",
         opencode_review_agent=_clean(g("OPENCODE_REVIEW_AGENT")) if g("OPENCODE_REVIEW_AGENT") is not None else "Plan",
         max_review_cycles=_int(g("MAX_REVIEW_CYCLES"), 2, 0),
         max_subtasks=_int(g("MAX_SUBTASKS"), 5, 1),

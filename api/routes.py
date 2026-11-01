@@ -300,8 +300,8 @@ def locks_history(request: Request, limit: int = Query(200, le=5000)) -> list[di
 
 
 @router.post("/locks/release-expired", tags=["Arquivos"])
-def release_expired(request: Request) -> dict:
-    return {"released": C(request).locks.release_expired()}
+def release_expired(request: Request, force: bool = Query(True)) -> dict:
+    return {"released": C(request).locks.release_expired(force=force)}
 
 
 @router.get("/decisions", tags=["Memória"])

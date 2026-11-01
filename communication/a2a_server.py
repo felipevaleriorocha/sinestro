@@ -117,7 +117,13 @@ class RoleAgentExecutor(AgentExecutor):
             try:
                 rep = ImplementationReport.model_validate(parse_json_object(text))
             except (ValidationError, AgentResponseError):
-                rep = ImplementationReport(status="partial", summary=text[:4000], result="Resposta não estruturada.", structured=False)
+                rep = ImplementationReport(
+                    status="partial",
+                    summary="Implementação não retornou formato JSON estruturado válido.",
+                    result="Resposta não estruturada.",
+                    raw_text=text[:4000],
+                    structured=False
+                )
             return rep.model_dump(), rep.summary[:300]
         if skill == "respond_assignment":
             try:
@@ -131,7 +137,12 @@ class RoleAgentExecutor(AgentExecutor):
                 rev = ReviewResult.model_validate(parse_json_object(text))
             except (ValidationError, AgentResponseError) as exc:
                 log.warning("Revisão fora do formato JSON: %s", redact(exc)[:500])
-                rev = ReviewResult(verdict="changes_requested", summary=text[:2000], structured=False)
+                rev = ReviewResult(
+                    verdict="changes_requested",
+                    summary="Revisão não retornou formato JSON estruturado válido.",
+                    raw_text=text[:2000],
+                    structured=False
+                )
             return rev.model_dump(), f"{rev.verdict}: {rev.summary[:250]}"
         raise AgentResponseError(f"Skill não suportada: {skill}")
 

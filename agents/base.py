@@ -33,6 +33,72 @@ from core.providers import (
 READ_ONLY_SKILLS = frozenset({"plan_feature", "respond_assignment", "review_implementation", "final_review"})
 
 
+def parse_cooldown_seconds(message: str, default_seconds: int = 3600) -> int:
+    """Extrai tempo de espera em segundos de mensagens de quota/rate-limit.
+    Suporta ex.: 'reseta em 36h57m', '36h57m', 'retry-after: 120', 'in 15 minutes', etc.
+    """
+    if not message or not isinstance(message, str):
+        return default_seconds
+    text = message.lower()
+
+    # 1. Padrão composto com prefixo de contexto
+    compact = re.search(
+        r"(?:reseta|reset|retry|wait|tente|tentativa|bloqueado)[^\d\n]*?"
+        r"(?:(?:em|in|after|após)\s*)?"
+        r"(?:(?P<days>\d+)\s*(?:d|dias?|days?)\s*)?"
+        r"(?:(?P<hours>\d+)\s*(?:h|horas?|hours?)\s*)?"
+        r"(?:(?P<mins>\d+)\s*(?:m|min|minutos?|minutes?)\s*)?"
+        r"(?:(?P<secs>\d+)\s*(?:s|seg|segundos?|seconds?))?",
+        text,
+    )
+    if compact and (compact.group("days") or compact.group("hours") or compact.group("mins") or compact.group("secs")):
+        d = int(compact.group("days") or 0)
+        h = int(compact.group("hours") or 0)
+        m = int(compact.group("mins") or 0)
+        s = int(compact.group("secs") or 0)
+        total = d * 86400 + h * 3600 + m * 60 + s
+        if total > 0:
+            return total
+
+    # 2. Padrão direto XhYm sem prefixo
+    dhms = re.search(
+        r"(?:(?P<days>\d+)\s*(?:d|dias?|days?)\s*)?"
+        r"(?P<hours>\d+)\s*(?:h|horas?|hours?)\s*"
+        r"(?:e\s*)?(?P<mins>\d+)?\s*(?:m|min|minutos?|minutes?)?",
+        text,
+    )
+    if dhms and (dhms.group("hours") or dhms.group("days")):
+        d = int(dhms.group("days") or 0)
+        h = int(dhms.group("hours") or 0)
+        m = int(dhms.group("mins") or 0)
+        total = d * 86400 + h * 3600 + m * 60
+        if total > 0:
+            return total
+
+    # 3. retry-after: NNN
+    ra = re.search(r"retry[-_ ]after[:\s]+(\d+)", text)
+    if ra:
+        val = int(ra.group(1))
+        if val > 0:
+            return val
+
+    # 4. Apenas minutos
+    just_mins = re.search(r"(?:em|in|after|após)\s*(\d+)\s*(?:m|min|minutos?|minutes?)", text)
+    if just_mins:
+        val = int(just_mins.group(1))
+        if val > 0:
+            return val * 60
+
+    # 5. Apenas segundos
+    just_secs = re.search(r"(?:em|in|after|após)\s*(\d+)\s*(?:s|seg|segundos?|seconds?)", text)
+    if just_secs:
+        val = int(just_secs.group(1))
+        if val > 0:
+            return val
+
+    return default_seconds
+
+
 class QuotaCooldown:
     """Cooldown de quota persistido em arquivo (sobrevive a reinícios). Comum aos dois adaptadores."""
 
@@ -55,10 +121,15 @@ class QuotaCooldown:
     def mark(self, message: str, retry_after: int | None = None) -> None:
         from datetime import datetime, timedelta, timezone
         from core.logging_setup import redact
-        seconds = retry_after if retry_after else self.default_minutes * 60
+        seconds = retry_after if retry_after is not None else parse_cooldown_seconds(message, default_seconds=self.default_minutes * 60)
         until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
         state = self._read()
-        state["quota"] = {"until": until.isoformat(), "message": redact(message)[:500], "model": self.model}
+        state["quota"] = {
+            "until": until.isoformat(),
+            "seconds": seconds,
+            "message": redact(message)[:500],
+            "model": self.model,
+        }
         self._write(state)
 
     def clear(self) -> None:
@@ -75,8 +146,13 @@ class QuotaCooldown:
             until = datetime.fromisoformat(quota["until"])
         except (KeyError, ValueError):
             return None
-        if until > datetime.now(timezone.utc):
-            return f"Quota do modelo {self.model} excedida; nova tentativa após {until.isoformat()} ({quota.get('message', '')[:200]})."
+        now = datetime.now(timezone.utc)
+        if until > now:
+            remaining_secs = int((until - now).total_seconds())
+            hours, rem = divmod(remaining_secs, 3600)
+            mins = rem // 60
+            time_str = f"{hours}h{mins}m" if hours > 0 else f"{mins}m"
+            return f"Quota do modelo {self.model} excedida; liberado em ~{time_str} ({until.isoformat()}). {quota.get('message', '')[:180]}"
         return None
 
 

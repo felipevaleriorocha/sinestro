@@ -24,6 +24,7 @@ from agents.base import (
     READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth,
     AgentPermissionError, AgentResponseError, AgentResult,
     AgentTimeoutError, AgentUnavailableError, QuotaExceededError, looks_like_quota_error,
+    parse_cooldown_seconds,
 )
 from core.capabilities import ModelCapability, ModelSpec
 from core.config import Settings
@@ -74,7 +75,8 @@ def result_from_payload(payload: dict[str, Any], model: str) -> AgentResult:
         detail = payload.get("error") or response or "sem detalhes"
         detail_text = redact(json.dumps(detail, ensure_ascii=False) if not isinstance(detail, str) else detail)
         if looks_like_quota_error(detail_text):
-            raise QuotaExceededError(f"Gemini/Antigravity sem cota: {detail_text[:500]}")
+            secs = parse_cooldown_seconds(detail_text, default_seconds=3600)
+            raise QuotaExceededError(f"Gemini/Antigravity sem cota: {detail_text[:500]}", retry_after_seconds=secs)
         raise AgentResponseError(f"Antigravity terminou com status {status}: {detail_text[:1500]}")
     if not isinstance(response, str) or not response.strip():
         denied = payload.get("denied_actions") or []
@@ -290,54 +292,119 @@ class GeminiProvider(Provider):
             raise QuotaExceededError(reason)
         if not self.settings.project_root.is_dir():
             raise AgentUnavailableError("PROJECT_ROOT não existe. Confira o caminho no .env.")
+
+        channel = (getattr(self.settings, "gemini_channel", "") or "agy").lower()
+        if channel == "off":
+            raise AgentUnavailableError("Canal do Gemini configurado como 'off' no .env.")
+        if channel == "api":
+            return self._run_api(prompt, context_key=context_key, run_id=run_id, options=options)
+
         resume = self.resume_flag() is not None
         if resume and self._sessions and not options.get("conversation_id"):
             previous = self._sessions.get_session(self.name, context_key)
             if previous:
                 options["conversation_id"] = previous
-        cmd, prompt_file = self.build_command(prompt, run_id, options)
-        cancel = threading.Event()
-        with self._lock:
-            self._cancel_events[run_id] = cancel
-        started = time.monotonic()
-        try:
-            try:
-                res = self._runner(cmd, cwd=self.settings.project_root, timeout=self.settings.agy_timeout, cancel_event=cancel)
-            except FileNotFoundError as exc:
-                raise AgentUnavailableError(f"Não foi possível iniciar o Antigravity CLI: {exc}") from exc
-        finally:
+        max_empty_retries = 1
+        for attempt in range(max_empty_retries + 1):
+            cmd, prompt_file = self.build_command(prompt, run_id, options)
+            cancel = threading.Event()
             with self._lock:
-                self._cancel_events.pop(run_id, None)
-            if prompt_file:
-                prompt_file.unlink(missing_ok=True)
-        elapsed = time.monotonic() - started
-        if cancel.is_set():
-            raise AgentCancelledError("Execução do Gemini cancelada.")
-        if res.timed_out:
-            raise AgentTimeoutError(f"Antigravity excedeu {self.settings.agy_timeout}s e foi encerrado.")
-        if res.returncode != 0:
-            details = redact((res.stderr or "").strip() or (res.stdout or "").strip())[-2000:]
-            # Mesmo com código != 0 o CLI pode ter emitido JSON com status de erro.
+                self._cancel_events[run_id] = cancel
+            started = time.monotonic()
+            try:
+                try:
+                    res = self._runner(cmd, cwd=self.settings.project_root, timeout=self.settings.agy_timeout, cancel_event=cancel)
+                except FileNotFoundError as exc:
+                    raise AgentUnavailableError(f"Não foi possível iniciar o Antigravity CLI: {exc}") from exc
+            finally:
+                with self._lock:
+                    self._cancel_events.pop(run_id, None)
+                if prompt_file:
+                    prompt_file.unlink(missing_ok=True)
+            elapsed = time.monotonic() - started
+            if cancel.is_set():
+                raise AgentCancelledError("Execução do Gemini cancelada.")
+            if res.timed_out:
+                raise AgentTimeoutError(f"Antigravity excedeu {self.settings.agy_timeout}s e foi encerrado.")
+            if res.returncode != 0:
+                details = redact((res.stderr or "").strip() or (res.stdout or "").strip())[-2000:]
+                try:
+                    payload = parse_agy_output(res.stdout)
+                    result_from_payload(payload, self.model)
+                except QuotaExceededError:
+                    raise
+                except AgentResponseError:
+                    pass
+                if looks_like_quota_error(details):
+                    secs = parse_cooldown_seconds(details, default_seconds=3600)
+                    raise QuotaExceededError(f"Gemini/Antigravity sem cota: {details[:500]}", retry_after_seconds=secs)
+                if re.search(r"(unauthenticated|not logged in|login required|401|403)", details, re.IGNORECASE):
+                    raise AgentAuthError(f"Antigravity CLI não autenticado: {details[:500]}")
+                raise AgentResponseError(f"Antigravity CLI falhou (código {res.returncode}): {details}")
+
             try:
                 payload = parse_agy_output(res.stdout)
-                result_from_payload(payload, self.model)
-            except QuotaExceededError:
+                result = result_from_payload(payload, options.get("model") or self.model)
+            except AgentResponseError as err:
+                if attempt < max_empty_retries and ("resposta vazia" in str(err).lower() or "não retornou json" in str(err).lower()):
+                    log.warning("Antigravity retornou saída vazia/malformada (tentativa %d/%d). Tentando novamente...", attempt + 1, max_empty_retries)
+                    time.sleep(1)
+                    continue
                 raise
-            except AgentResponseError:
-                pass
-            if looks_like_quota_error(details):
-                raise QuotaExceededError(f"Gemini/Antigravity sem cota: {details[:500]}")
-            if re.search(r"(unauthenticated|not logged in|login required|401|403)", details, re.IGNORECASE):
-                raise AgentAuthError(f"Antigravity CLI não autenticado: {details[:500]}")
-            raise AgentResponseError(f"Antigravity CLI falhou (código {res.returncode}): {details}")
-        payload = parse_agy_output(res.stdout)
-        result = result_from_payload(payload, options.get("model") or self.model)
-        if result.duration_seconds is None:
-            result.duration_seconds = round(elapsed, 3)
-        if result.session_id and resume and self._sessions:
-            self._sessions.save_session(self.name, context_key, result.session_id, result.model)
-        result.extra["resume_supported"] = resume
-        return result
+
+            if result.duration_seconds is None:
+                result.duration_seconds = round(elapsed, 3)
+            if result.session_id and resume and self._sessions:
+                self._sessions.save_session(self.name, context_key, result.session_id, result.model)
+            result.extra["resume_supported"] = resume
+            return result
+
+        raise AgentResponseError("Antigravity retornou status SUCCESS com resposta vazia após retentativas.")
+
+    def _run_api(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+        import httpx
+        api_key = self.settings.gemini_api_key
+        if not api_key:
+            raise AgentAuthError("GEMINI_API_KEY não configurada no .env para GEMINI_CHANNEL=api.")
+        model = options.get("model") or self.settings.gemini_api_model or "gemini-2.5-pro"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        started = time.monotonic()
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2}
+        }
+        try:
+            with httpx.Client(timeout=self.settings.agy_timeout) as client:
+                resp = client.post(url, json=payload)
+        except httpx.TimeoutException as exc:
+            raise AgentTimeoutError(f"Gemini API timeout excedido: {exc}") from exc
+        except Exception as exc:
+            raise AgentUnavailableError(f"Erro de conexão com Gemini API: {exc}") from exc
+
+        if resp.status_code == 429:
+            retry_after = resp.headers.get("retry-after")
+            secs = int(retry_after) if retry_after and retry_after.isdigit() else parse_cooldown_seconds(resp.text, 3600)
+            raise QuotaExceededError(f"Gemini API sem cota (429): {resp.text[:300]}", retry_after_seconds=secs)
+        if resp.status_code in (401, 403):
+            raise AgentAuthError(f"Gemini API chave inválida ou não autorizada ({resp.status_code}): {resp.text[:300]}")
+        if resp.status_code != 200:
+            raise AgentResponseError(f"Gemini API erro ({resp.status_code}): {resp.text[:500]}")
+
+        data = resp.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            raise AgentResponseError("Gemini API retornou lista de candidates vazia.")
+        parts = candidates[0].get("content", {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in parts if isinstance(p, dict)).strip()
+        if not text:
+            raise AgentResponseError("Gemini API retornou texto vazio.")
+        usage = data.get("usageMetadata")
+        return AgentResult(
+            text=text,
+            model=model,
+            usage={"input_tokens": usage.get("promptTokenCount"), "output_tokens": usage.get("candidatesTokenCount")} if usage else None,
+            duration_seconds=round(time.monotonic() - started, 3),
+        )
 
     def cancel(self, run_id: str) -> bool:
         with self._lock:

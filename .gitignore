@@ -5,6 +5,8 @@ __pycache__/
 orchestrator*.db
 orchestrator*.db-*
 orchestrator*.db.bak-*
+*.db
+*.db-*
 runtime/
 logs/
 config/mcp_servers.json

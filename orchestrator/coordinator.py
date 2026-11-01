@@ -120,7 +120,12 @@ class Coordinator:
                 self.tasks.set_status(wf_id, WF.INTERRUPTED, error="Execução interrompida (serviço encerrando).")
                 raise
             except Exception as exc:  # noqa: BLE001
-                if getattr(exc, "code", None) == "timeout" or isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in str(exc).lower():
+                from agents.base import AgentTimeoutError
+                is_timeout = (
+                    getattr(exc, "code", None) == "timeout"
+                    or isinstance(exc, (TimeoutError, asyncio.TimeoutError, AgentTimeoutError))
+                )
+                if is_timeout:
                     unconfirmed_stop = True
                     self.tasks.event(wf_id, "orchestrator", "locks_retained_unconfirmed_stop",
                                      "Locks retidos: processo externo não confirmou encerramento (timeout).", "warning")
@@ -298,9 +303,11 @@ class Coordinator:
             if res.ok:
                 planner = candidate
                 break
-            if candidate == "gemini" and (res.error_code in UNAVAILABLE_CODES or res.state == "rejected"):
+            is_fatal_cli_error = any(w in (res.status_message or "").lower() for w in ("terminou com status error", "cli falhou"))
+            is_empty_or_invalid = res.error_code in ("invalid_response", "empty_response", "json_error") and not is_fatal_cli_error
+            if candidate == "gemini" and (res.error_code in UNAVAILABLE_CODES or res.state == "rejected" or is_empty_or_invalid):
                 self.tasks.event(wf_id, "orchestrator", "planner_fallback",
-                                 f"Gemini indisponível para planejar ({res.error_code}); DeepSeek assume o planejamento.", "warning")
+                                 f"Gemini falhou ao planejar ({res.error_code or res.state}); DeepSeek assume o planejamento como fallback.", "warning")
                 continue
             raise WorkflowAbort(f"Planejamento falhou ({res.state}/{res.error_code}): {res.status_message}")
         if planner is None:
