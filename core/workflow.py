@@ -172,6 +172,18 @@ class WorkflowDAG:
         ])
 
     @classmethod
+    def simple_dag(cls) -> WorkflowDAG:
+        """DAG simplificado (fast-track): Contexto -> Planejamento -> Negociação (direta/sem LLM) -> Subtarefas -> Revisão Final -> Conclusão."""
+        return cls([
+            WorkflowStage(id="context", name="Coleta de Contexto", action_name="context", depends_on=()),
+            WorkflowStage(id="plan", name="Planejamento", action_name="plan", depends_on=("context",)),
+            WorkflowStage(id="negotiate", name="Atribuição Direta", action_name="negotiate", depends_on=("plan",)),
+            WorkflowStage(id="execute_subtasks", name="Execução de Subtarefas", action_name="execute_subtasks", depends_on=("negotiate",)),
+            WorkflowStage(id="final_review", name="Revisão Final (Condicional)", action_name="final_review", depends_on=("execute_subtasks",)),
+            WorkflowStage(id="conclude", name="Conclusão e Métricas", action_name="conclude", depends_on=("final_review",)),
+        ])
+
+    @classmethod
     def plan_only_dag(cls) -> WorkflowDAG:
         """DAG restrito a planejamento: Contexto -> Planejamento -> Conclusão."""
         return cls([

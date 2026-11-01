@@ -205,7 +205,7 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
         <div class="box">
           <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
           <div class="bar2">
-            <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
+            <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="simple" onclick="setMode(this)">Simples</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
             <div class="bar2-right">
               <label class="auto-approve-wrap" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
                 <span class="auto-approve-txt">Auto-aprovar</span>
@@ -235,6 +235,7 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
               <div class="chat-input-footer">
                 <div class="seg seg-sm">
                   <button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button>
+                  <button data-m="simple" onclick="setMode(this)">Simples</button>
                   <button data-m="full" onclick="setMode(this)">Fluxo completo</button>
                 </div>
                 <div class="chat-input-actions">

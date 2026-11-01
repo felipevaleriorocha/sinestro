@@ -100,9 +100,26 @@ class Coordinator:
 
     async def cancel(self, wf_id: str) -> None:
         self.tasks.request_cancel(wf_id)
+        self.tasks.event(wf_id, "orchestrator", "workflow_canceled_by_user", "Cancelamento solicitado pelo usuário.", "warning")
+
+        # Interrompe processos externos imediatamente (se houver tarefas A2A ativas)
+        for st in self.registry.agents.values():
+            try:
+                for sub in self.tasks.subtasks(wf_id):
+                    tid = sub.get("last_a2a_task_id")
+                    if tid:
+                        st.backend.cancel(tid)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Falha ao cancelar backend: %s", exc)
+
         wf = self.repo.get_workflow(wf_id)
-        if wf and wf["status"] == WF.QUEUED and not self.is_running(wf_id):
-            self.tasks.set_status(wf_id, WF.CANCELED)
+        is_running = self.is_running(wf_id)
+        if not is_running:
+            for sub in self.tasks.subtasks(wf_id):
+                if sub["status"] not in ST.DONE:
+                    self.repo.update_subtask(sub["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
+            self.locks.release_workflow(wf_id)
+            self.tasks.set_status(wf_id, WF.CANCELED, error="Cancelado pelo usuário.")
 
     async def shutdown(self) -> None:
         for t in self._running.values():
@@ -117,7 +134,9 @@ class Coordinator:
             try:
                 await self.run_workflow(wf_id, resume)
             except asyncio.CancelledError:
-                self.tasks.set_status(wf_id, WF.INTERRUPTED, error="Execução interrompida (serviço encerrando).")
+                status = WF.CANCELED if self.tasks.cancel_requested(wf_id) else WF.INTERRUPTED
+                err_msg = "Cancelado pelo usuário." if status == WF.CANCELED else "Execução interrompida (serviço encerrando)."
+                self.tasks.set_status(wf_id, status, error=err_msg)
                 raise
             except Exception as exc:  # noqa: BLE001
                 from agents.base import AgentTimeoutError
@@ -156,6 +175,8 @@ class Coordinator:
             dag = WorkflowDAG.plan_only_dag()
         elif mode == "no_review":
             dag = WorkflowDAG.no_review_dag()
+        elif mode == "simple":
+            dag = WorkflowDAG.simple_dag()
         else:
             dag = WorkflowDAG.standard_dag()
 
@@ -193,6 +214,8 @@ class Coordinator:
         return bundle
 
     async def _step_plan(self, ctx: WorkflowContext) -> Any:
+        if self.tasks.cancel_requested(ctx.wf_id):
+            raise WorkflowAbort("Cancelado pelo usuário.", WF.CANCELED)
         wf = self.repo.get_workflow(ctx.wf_id) or {}
         if ctx.resume and wf.get("plan") and self.tasks.subtasks(ctx.wf_id):
             plan = wf["plan"]
@@ -211,7 +234,9 @@ class Coordinator:
     async def _step_negotiate(self, ctx: WorkflowContext) -> Any:
         if ctx.mode == "plan_only":
             return None
-        await self._negotiate_assignments(ctx.wf_id, ctx.goal, ctx.plan or {})
+        if self.tasks.cancel_requested(ctx.wf_id):
+            raise WorkflowAbort("Cancelado pelo usuário.", WF.CANCELED)
+        await self._negotiate_assignments(ctx.wf_id, ctx.goal, ctx.plan or {}, skip_llm=(ctx.mode == "simple"))
         self.tasks.set_status(ctx.wf_id, WF.DELEGATING)
         return True
 
@@ -363,7 +388,7 @@ class Coordinator:
         return plan
 
     # ================================================================ 2. atribuição
-    async def _negotiate_assignments(self, wf_id: str, goal: str, plan: dict) -> None:
+    async def _negotiate_assignments(self, wf_id: str, goal: str, plan: dict, skip_llm: bool = False) -> None:
         # Só subtarefas ainda sem decisão e sem implementação (nunca reatribui trabalho já feito).
         subs = [s for s in self.tasks.subtasks(wf_id) if not s.get("assignment") and not s.get("result")]
         if not subs:
@@ -376,7 +401,9 @@ class Coordinator:
         self.tasks.event(wf_id, planner, "assignment_proposed", proposals)
         responses: dict[str, Any] | None = None
         ok, reason = self.registry.can_accept(responder)
-        if not self.s.assignment_negotiation:
+        if skip_llm:
+            self.tasks.event(wf_id, "orchestrator", "assignment_negotiation_skipped", "Modo simples ativado (fast-track: atribuição direta por regras).")
+        elif not self.s.assignment_negotiation:
             self.tasks.event(wf_id, "orchestrator", "assignment_negotiation_skipped", "ASSIGNMENT_NEGOTIATION=false")
         elif not ok:
             self.tasks.event(wf_id, "orchestrator", "assignment_negotiation_skipped", f"{responder} indisponível: {reason}", "warning")
@@ -431,8 +458,8 @@ class Coordinator:
             subs = self.tasks.subtasks(wf_id)
             if self.tasks.cancel_requested(wf_id):
                 for s in subs:
-                    if s["status"] in (ST.PENDING, ST.INTERRUPTED):
-                        self.repo.update_subtask(s["id"], status=ST.CANCELED)
+                    if s["status"] not in ST.DONE:
+                        self.repo.update_subtask(s["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
                 return False
             blocked = [s for s in subs if s["status"] in ST.BLOCKING]
             if len(blocked) >= self.s.max_blocked_subtasks:
@@ -964,6 +991,15 @@ class Coordinator:
         if not subs or not all(s["status"] in ST.DONE for s in subs) or self.tasks.cancel_requested(wf_id):
             outcome = {"state": FR.NOT_REACHED, "detail": "Nem todas as subtarefas foram aprovadas."}
             self.repo.update_workflow(wf_id, final_review_state=FR.NOT_REACHED, final_review_json=outcome)
+            return outcome
+        wf = self.repo.get_workflow(wf_id) or {}
+        mode = wf.get("mode") or "full"
+        if mode == "simple" and len(subs) == 1 and all(s["status"] == ST.APPROVED for s in subs):
+            reviewer, self_authored = self._final_reviewer(subs)
+            outcome = {"state": FR.PASSED, "detail": "Dispensada em modo simples (subtarefa única já aprovada na revisão cruzada)",
+                       "coverage": self._coverage(subs, [], FR.PASSED)}
+            self.repo.update_workflow(wf_id, final_review_state=FR.PASSED, final_review_json=outcome)
+            self.tasks.event(wf_id, "orchestrator", "final_review_passed", "Revisão final dispensada automaticamente no modo simples (1 subtarefa aprovada).", "info")
             return outcome
         if not self.s.final_review:
             reviewer, self_authored = self._final_reviewer(subs)

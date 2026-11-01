@@ -19,7 +19,7 @@ router = APIRouter()
 
 class TaskRequest(BaseModel):
     goal: str = Field(min_length=8, max_length=8000)
-    mode: Literal["full", "plan_only"] = "full"
+    mode: Literal["full", "simple", "plan_only"] = "full"
 
 
 class DecisionRequest(BaseModel):
@@ -128,8 +128,8 @@ async def cancel_task(task_id: str, request: Request) -> dict:
     wf = c.repo.get_workflow(task_id)
     if not wf:
         raise HTTPException(404, "Tarefa não encontrada.")
-    if wf["status"] not in WF.ACTIVE:
-        raise HTTPException(409, f"Tarefa não está ativa (status {wf['status']}).")
+    if wf["status"] in {WF.COMPLETED, WF.CANCELED}:
+        raise HTTPException(409, f"Tarefa já finalizada (status {wf['status']}).")
     await c.coordinator.cancel(task_id)
     return {"id": task_id, "cancel_requested": True}
 
