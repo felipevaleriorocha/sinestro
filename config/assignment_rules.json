@@ -16,7 +16,11 @@
     "ui": "deepseek",
     "boilerplate": "deepseek",
     "mechanical": "deepseek",
-    "config": "deepseek"
+    "config": "deepseek",
+    "asset": "gemini",
+    "assets": "gemini",
+    "map": "gemini",
+    "3d": "gemini"
   },
   "path_rules": [
     {"pattern": "**/ServerScriptService/**", "agent": "gemini",   "label": "server"},
@@ -26,6 +30,10 @@
     {"pattern": "**/StarterGui/**",          "agent": "deepseek", "label": "ui"},
     {"pattern": "src/client/**/UI/**",       "agent": "deepseek", "label": "ui"},
     {"pattern": "**/*.json",                 "agent": "deepseek", "label": "config"},
-    {"pattern": "**/*.toml",                 "agent": "deepseek", "label": "config"}
+    {"pattern": "**/*.toml",                 "agent": "deepseek", "label": "config"},
+    {"pattern": "**/assets/**",              "agent": "gemini",   "label": "assets"},
+    {"pattern": "**/*.rbxm",                 "agent": "gemini",   "label": "assets"},
+    {"pattern": "**/*.fbx",                  "agent": "gemini",   "label": "assets"},
+    {"pattern": "**/*.obj",                  "agent": "gemini",   "label": "assets"}
   ]
 }
