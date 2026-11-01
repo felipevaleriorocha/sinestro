@@ -39,11 +39,11 @@ SKILL_ASSIGN = SkillDef("respond_assignment", "Responder atribuição",
                         "Aceita ou contesta (com motivo) a atribuição proposta para cada subtarefa, em um único turno.",
                         ("planning", "negotiation"))
 SKILL_IMPLEMENT = SkillDef("implement_task", "Implementar subtarefa",
-                           "Implementa/corrige scripts Luau e mecânicas de RPG conforme objetivo, contexto, arquivos, critérios e restrições; "
+                           "Implementa/corrige código e funcionalidades conforme objetivo, contexto, arquivos, critérios e restrições; "
                            "devolve resumo, arquivos modificados, decisões técnicas, problemas e resultado.",
-                           ("luau", "roblox", "rpg", "bugfix", "refactor"))
+                           ("implementation", "bugfix", "refactor"))
 SKILL_REVIEW = SkillDef("review_implementation", "Revisar implementação do outro agente",
-                        "Revisa, em modo somente leitura, o trabalho do OUTRO agente com checklist (critérios de aceitação, APIs do Roblox, "
+                        "Revisa, em modo somente leitura, o trabalho do OUTRO agente com checklist (critérios de aceitação, APIs do domínio, "
                         "casos de borda, segurança cliente/servidor) e achados com evidência (arquivo, linha e trecho).",
                         ("review", "quality"))
 SKILL_FINAL = SkillDef("final_review", "Revisão final", "Avalia o resultado consolidado do workflow.", ("review",))
@@ -55,7 +55,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         name="gemini",
         display_name="Gemini — Tech Lead",
         role="CTO / Tech Lead",
-        description="Mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes. Planeja, implementa e revisa; "
+        description="Mais forte em arquitetura, segurança, lógica de backend/servidor e interfaces principais. Planeja, implementa e revisa; "
                     "nunca revisa o próprio trabalho.",
         skills=SYMMETRIC_SKILLS,
         provider="Google (via Antigravity CLI)",
@@ -64,7 +64,7 @@ AGENT_DEFINITIONS: dict[str, AgentDefinition] = {
         name="deepseek",
         display_name="DeepSeek — Senior Developer",
         role="Senior Developer",
-        description="Mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração. Planeja, implementa e revisa; "
+        description="Mais forte em implementação, UI, lógica detalhada, boilerplate e configuração. Planeja, implementa e revisa; "
                     "nunca revisa o próprio trabalho.",
         skills=SYMMETRIC_SKILLS,
         provider="DeepSeek (via OpenCode)",

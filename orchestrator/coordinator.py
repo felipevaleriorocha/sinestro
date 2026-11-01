@@ -26,6 +26,7 @@ from pydantic import ValidationError
 from communication.a2a_client import A2AAgentClient, A2ADelegationError
 from communication.messaging import DelegationResult
 from core.config import Settings
+from core.domain import DomainProfile
 from core.logging_setup import redact
 from database.repository import Repository, utc_now
 from mcp_bridge.server_registry import MCPServerRegistry
@@ -62,7 +63,7 @@ class Coordinator:
     def __init__(self, settings: Settings, repo: Repository, tasks: TaskManager, registry: AgentRegistry,
                  a2a: A2AAgentClient, context: ContextManager, decisions: DecisionStore, locks: FileLockManager,
                  git: GitInspector, mcp: MCPServerRegistry, checks: ChecksRunner | None = None,
-                 rules: AssignmentRules | None = None):
+                 rules: AssignmentRules | None = None, domain: DomainProfile | None = None):
         self.s = settings
         self.repo = repo
         self.tasks = tasks
@@ -73,6 +74,7 @@ class Coordinator:
         self.locks = locks
         self.git = git
         self.mcp = mcp
+        self.domain = domain
         self.checks = checks or ChecksRunner(settings.project_root, settings.checks_file)
         self.rules = rules or AssignmentRules.load(settings.assignment_rules_file)
         self._running: dict[str, asyncio.Task] = {}

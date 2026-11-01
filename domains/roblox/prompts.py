@@ -1,20 +1,27 @@
-"""Prompts por skill, neutros em relação ao agente (papéis simétricos).
+"""Prompts por skill específicos para o domínio Roblox/Luau (papéis simétricos).
 
 Os dois agentes recebem o MESMO bloco de contexto compartilhado. A tabela de desempate de atribuição
-NÃO aparece aqui (fica em config/assignment_rules.json); os prompts só listam as categorias permitidas.
+fica no config do domínio; os prompts só listam as categorias permitidas.
 """
 from __future__ import annotations
 
 import json
 from typing import Any
 
-from orchestrator.schemas import CATEGORIES, CHECKLIST
-
 AGENT_LABEL = {"gemini": "Gemini", "deepseek": "DeepSeek"}  # o modelo real vem do .env (AGY_MODEL/OPENCODE_MODEL)
 AGENT_PROFILE = {
     "gemini": "mais forte em arquitetura, segurança, lógica de servidor, DataStore e remotes",
     "deepseek": "mais forte em implementação Luau, UI, código mecânico, boilerplate e configuração",
 }
+
+CATEGORIES = (
+    "architecture", "security", "server", "datastore", "remotes", "ui",
+    "boilerplate", "mechanical", "config", "other",
+)
+CHECKLIST = (
+    "acceptance_criteria", "roblox_api_misuse", "edge_case",
+    "client_server_security", "other",
+)
 
 COMMON_RULES = """REGRAS GERAIS (valem para todos os agentes):
 - Use somente informações presentes no CONTEXTO COMPARTILHADO e nos arquivos reais do workspace. Não invente mecânicas, nomes, números ou sistemas do jogo.
@@ -24,8 +31,8 @@ COMMON_RULES = """REGRAS GERAIS (valem para todos os agentes):
 - Não altere arquivos fora dos ARQUIVOS RESERVADOS da sua subtarefa. Se precisar, reporte em "issues".
 - Não execute comandos destrutivos (reset, checkout, rm, push) nem altere configurações do repositório.
 - Não assuma conexão com o Roblox Studio via MCP: use apenas se o ESTADO MCP indicar conexão ativa para você.
-- N?O execute comandos de terminal/shell (s?o negados automaticamente e sua resposta se perde). Use apenas as
-  ferramentas de leitura, busca e edi??o de arquivos. Checagens (lint) s?o feitas pelo orquestrador.
+- NÃO execute comandos de terminal/shell (são negados automaticamente e sua resposta se perde). Use apenas as
+  ferramentas de leitura, busca e edição de arquivos. Checagens (lint) são feitas pelo orquestrador.
 - Responda SOMENTE com o JSON pedido, sem texto fora dele."""
 
 READ_ONLY = "MODO SOMENTE LEITURA: NÃO crie, edite, mova nem apague arquivos nesta etapa. Qualquer alteração invalida sua resposta."
@@ -292,4 +299,3 @@ Responda SOMENTE JSON:
 CONTEXTO COMPARTILHADO:
 {context_text}
 """
-

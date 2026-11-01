@@ -2,7 +2,7 @@
 
 Recursos:
   file:<caminho relativo normalizado>   arquivos do workspace
-  mcp:<servidor>:<alvo>                 elementos manipulados via MCP (ex.: mcp:roblox_studio:Workspace/Map)
+  mcp:<servidor>:<alvo>                 elementos manipulados via MCP (ex.: mcp:external_service:Workspace/Target)
 A aquisição é atômica (tudo ou nada) dentro de uma transação SQLite BEGIN IMMEDIATE.
 """
 from __future__ import annotations

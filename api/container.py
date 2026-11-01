@@ -16,7 +16,9 @@ from agents.opencode_adapter import OpenCodeAdapter
 from communication.a2a_client import A2AAgentClient
 from communication.a2a_server import agent_base_path
 from core.config import Settings
+from core.domain import DomainProfile
 from database.repository import Repository
+from domains.roblox import RobloxDomainProfile
 from mcp_bridge.server_registry import MCPServerRegistry
 from memory.context_manager import ContextManager
 from memory.decision_store import DecisionStore
@@ -49,11 +51,13 @@ class Container:
     mcp: MCPServerRegistry
     coordinator: Coordinator
     checks: ChecksRunner
+    domain: DomainProfile
 
 
 def build_container(settings: Settings, backends: dict[str, AgentBackend] | None = None,
                     http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
-                    checks: ChecksRunner | None = None) -> Container:
+                    checks: ChecksRunner | None = None,
+                    domain: DomainProfile | None = None) -> Container:
     repo = Repository(settings.db_path)
     mock_mode = False
     if backends is None:
@@ -70,24 +74,34 @@ def build_container(settings: Settings, backends: dict[str, AgentBackend] | None
     else:
         mock_mode = any(getattr(b, "kind", "") == "mock" for b in backends.values())
 
+    domain = domain or RobloxDomainProfile(settings)
+
     # Arquivo separado: o DatabaseTaskStore (aiosqlite) e o Repository (sqlite3 síncrono) no mesmo arquivo
     # disputam o lock de escrita e podem travar o event loop. Ambos ficam ao lado, persistentes.
     a2a_db = settings.db_path.with_name(settings.db_path.stem + "_a2a.db")
     engine = create_async_engine(f"sqlite+aiosqlite:///{a2a_db.as_posix()}")
     task_store = DatabaseTaskStore(engine)  # tabela padrão do SDK ("tasks") dentro de orchestrator_a2a.db
     decisions = DecisionStore(repo)
+    context_data = domain.load_context_sources()
     context = ContextManager(settings.project_root, settings.context_sources_file, decisions,
-                             settings.context_max_chars, settings.context_file_max_chars)
+                             settings.context_max_chars, settings.context_file_max_chars,
+                             sources_config=context_data)
     locks = FileLockManager(repo, settings.project_root, settings.file_lock_ttl_seconds)
     git = GitInspector(settings.project_root)
     mcp = MCPServerRegistry(settings.mcp_config_file)
     tasks = TaskManager(repo)
-    registry = AgentRegistry(backends, AGENT_DEFINITIONS, allow_fallback=settings.allow_agent_fallback)
+    agent_defs = domain.get_agent_definitions() or AGENT_DEFINITIONS
+    registry = AgentRegistry(backends, agent_defs, allow_fallback=settings.allow_agent_fallback)
     agent_urls = {name: f"{settings.public_url}{agent_base_path(name)}" for name in backends}
     a2a = A2AAgentClient(repo, agent_urls, http_client_factory=http_client_factory,
                          poll_interval=settings.a2a_poll_interval, task_timeout=settings.a2a_task_timeout)
-    checks = checks or ChecksRunner(settings.project_root, settings.checks_file)
+    checks_data = domain.load_checks_config()
+    allowed_tools = frozenset(checks_data["allowed_tools"]) if "allowed_tools" in checks_data else None
+    checks = checks or ChecksRunner(settings.project_root, settings.checks_file,
+                                    config=checks_data, allowed_tools=allowed_tools)
+    rules_data = domain.load_assignment_rules()
+    rules = AssignmentRules.from_dict(rules_data) if rules_data else AssignmentRules.load(settings.assignment_rules_file)
     coordinator = Coordinator(settings, repo, tasks, registry, a2a, context, decisions, locks, git, mcp,
-                              checks=checks, rules=AssignmentRules.load(settings.assignment_rules_file))
+                              checks=checks, rules=rules, domain=domain)
     return Container(settings, repo, backends, mock_mode, engine, task_store, tasks, registry, a2a, context, decisions,
-                     locks, git, mcp, coordinator, checks)
+                     locks, git, mcp, coordinator, checks, domain)

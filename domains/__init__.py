@@ -1,0 +1,1 @@
+"""Domínios suportados pelo orquestrador."""

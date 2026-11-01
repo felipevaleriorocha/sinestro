@@ -1,0 +1,14 @@
+{
+  "_leia_me": [
+    "Checagens automáticas executadas entre a implementação e a revisão por LLM. TODAS DESLIGADAS por padrão.",
+    "Somente as ferramentas selene, stylua, luau-analyze e luau-lsp são aceitas (lista fixa no código, sem shell).",
+    "Os argumentos abaixo são SUGESTÕES NÃO VERIFICADAS: confira na documentação/--help da versão instalada antes de",
+    "colocar enabled=true. {files} é substituído pelos arquivos .lua/.luau alterados (caminhos validados no workspace).",
+    "Rode .\\scripts\\check_integrations.ps1 para ver quais estão instaladas."
+  ],
+  "checks": [
+    {"id": "selene", "binary": "selene", "args": ["--allow-warnings", "{files}"], "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 120, "enabled": true},
+    {"id": "stylua",       "binary": "stylua",       "args": ["--check", "{files}"], "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 120, "enabled": false},
+    {"id": "luau-analyze", "binary": "luau-analyze", "args": ["{files}"],            "file_globs": ["*.lua", "*.luau"], "timeout_seconds": 180, "enabled": false}
+  ]
+}

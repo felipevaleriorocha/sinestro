@@ -19,7 +19,7 @@ from core.logging_setup import redact
 from core.safe_exec import resolve_binary, run_process
 from orchestrator.file_locks import PathOutsideWorkspaceError, normalize_file
 
-ALLOWED_TOOLS = frozenset({"selene", "stylua", "luau-analyze", "luau-lsp"})
+ALLOWED_TOOLS = frozenset({"selene", "stylua"})
 MAX_OUTPUT = 3000
 
 
@@ -28,7 +28,7 @@ class CheckSpec:
     id: str
     binary: str
     args: list[str] = field(default_factory=lambda: ["{files}"])
-    file_globs: list[str] = field(default_factory=lambda: ["*.lua", "*.luau"])
+    file_globs: list[str] = field(default_factory=lambda: ["*"])
     timeout_seconds: int = 120
     success_exit_codes: list[int] = field(default_factory=lambda: [0])
     enabled: bool = False
@@ -44,28 +44,34 @@ def _stem(binary: str) -> str:
 
 class ChecksRunner:
     def __init__(self, project_root: Path, config_file: Path | None = None, specs: list[CheckSpec] | None = None,
-                 allow_unlisted: bool = False, runner: Callable = run_process):
+                 allow_unlisted: bool = False, runner: Callable = run_process,
+                 config: dict | None = None, allowed_tools: frozenset[str] | None = None):
         """`allow_unlisted` existe só para testes (permite um checador falso); não é configurável pelo .env/config."""
         self.root = Path(project_root)
         self.config_file = Path(config_file) if config_file else None
         self._specs = specs
         self.allow_unlisted = allow_unlisted
         self._runner = runner
+        self._config_data = config
+        self._allowed_tools = allowed_tools
 
     def specs(self) -> tuple[list[CheckSpec], list[str]]:
         if self._specs is not None:
             return list(self._specs), []
         errors: list[str] = []
-        try:
-            data = json.loads(self.config_file.read_text(encoding="utf-8")) if self.config_file else {}
-        except (OSError, ValueError) as exc:
-            return [], [f"config de checagens ilegível: {exc}"]
+        if self._config_data is not None:
+            data = self._config_data
+        else:
+            try:
+                data = json.loads(self.config_file.read_text(encoding="utf-8")) if self.config_file else {}
+            except (OSError, ValueError) as exc:
+                return [], [f"config de checagens ilegível: {exc}"]
         out = []
         for raw in data.get("checks", []):
             try:
                 spec = CheckSpec(id=str(raw["id"]), binary=str(raw.get("binary") or raw["id"]),
                                  args=[str(a) for a in raw.get("args", ["{files}"])],
-                                 file_globs=[str(g) for g in raw.get("file_globs", ["*.lua", "*.luau"])],
+                                 file_globs=[str(g) for g in raw.get("file_globs", ["*"])],
                                  timeout_seconds=int(raw.get("timeout_seconds", 120)),
                                  success_exit_codes=[int(c) for c in raw.get("success_exit_codes", [0])],
                                  enabled=bool(raw.get("enabled", False)))
@@ -76,7 +82,15 @@ class ChecksRunner:
         return out, errors
 
     def _allowed(self, spec: CheckSpec) -> bool:
-        return self.allow_unlisted or (spec.id in ALLOWED_TOOLS and _stem(spec.binary) in ALLOWED_TOOLS)
+        if self.allow_unlisted:
+            return True
+        allowed = self._allowed_tools
+        if allowed is None:
+            if self._config_data and "allowed_tools" in self._config_data:
+                allowed = frozenset(self._config_data["allowed_tools"])
+            else:
+                allowed = ALLOWED_TOOLS
+        return spec.id in allowed and _stem(spec.binary) in allowed
 
     def status(self) -> dict:
         specs, errors = self.specs()

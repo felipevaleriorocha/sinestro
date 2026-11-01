@@ -32,22 +32,27 @@ class ContextBundle:
 
 
 class ContextManager:
-    def __init__(self, project_root: Path, sources_file: Path, decisions: DecisionStore,
-                 max_chars: int = 40000, file_max_chars: int = 12000):
+    def __init__(self, project_root: Path, sources_file: Path | None = None, decisions: DecisionStore | None = None,
+                 max_chars: int = 40000, file_max_chars: int = 12000, sources_config: dict | None = None):
         self.project_root = Path(project_root)
-        self.sources_file = Path(sources_file)
+        self.sources_file = Path(sources_file) if sources_file else None
         self.decisions = decisions
         self.max_chars = max_chars
         self.file_max_chars = file_max_chars
+        self._sources_config = sources_config
         self._frozen: dict[str, ContextBundle] = {}
 
     def _config(self) -> dict:
-        try:
-            return json.loads(self.sources_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return {"categories": [{"id": "agents", "label": "AGENTS.md", "patterns": ["AGENTS.md"], "required": True},
-                                   {"id": "readme", "label": "README.md", "patterns": ["README.md"], "required": True}],
-                    "exclude_dirs": [".git", "node_modules"], "max_files_per_category": 4}
+        if self._sources_config is not None:
+            return self._sources_config
+        if self.sources_file and self.sources_file.is_file():
+            try:
+                return json.loads(self.sources_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        return {"categories": [{"id": "agents", "label": "AGENTS.md", "patterns": ["AGENTS.md"], "required": True},
+                               {"id": "readme", "label": "README.md", "patterns": ["README.md"], "required": True}],
+                "exclude_dirs": [".git", "node_modules"], "max_files_per_category": 4}
 
     def _walk(self, exclude: set[str]) -> list[str]:
         files: list[str] = []

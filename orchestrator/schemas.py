@@ -36,7 +36,10 @@ class DecisionProposal(_Lenient):
     tags: list[str] = Field(default_factory=list)
 
 
-CATEGORIES = ("architecture", "security", "server", "datastore", "remotes", "ui", "boilerplate", "mechanical", "config", "other")
+CATEGORIES = (
+    "architecture", "security", "server", "persistence", "events", "ui",
+    "boilerplate", "mechanical", "config", "other",
+)
 
 
 class PlannedTask(_Lenient):
@@ -124,7 +127,7 @@ class ImplementationReport(_Lenient):
 
 
 Verdict = Literal["approved", "changes_requested", "needs_clarification", "rejected"]
-CHECKLIST = ("acceptance_criteria", "roblox_api_misuse", "edge_case", "client_server_security", "other")
+CHECKLIST = ("acceptance_criteria", "api_misuse", "edge_case", "client_server_security", "other")
 
 
 class ReviewFinding(_Lenient):

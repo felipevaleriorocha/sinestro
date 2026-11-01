@@ -50,7 +50,8 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
     app.state.started = False
     app.include_router(router)
     app.state.cards = mount_a2a_agents(app, definitions=AGENT_DEFINITIONS, backends=container.backends, repo=container.repo,
-                                       task_store=container.task_store, public_url=settings.public_url)
+                                       task_store=container.task_store, public_url=settings.public_url,
+                                       domain=container.domain)
     dashboard_dir = BASE_DIR / "dashboard"
     if dashboard_dir.is_dir():
         app.mount("/dashboard", StaticFiles(directory=str(dashboard_dir), html=True), name="dashboard")

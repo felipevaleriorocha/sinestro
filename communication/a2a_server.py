@@ -25,9 +25,9 @@ from pydantic import ValidationError
 
 from agents.base import READ_ONLY_SKILLS, AgentBackend, AgentCancelledError, AgentError, AgentResponseError, AgentResult, parse_json_object
 from communication.messaging import parse_request
+from core.domain import DomainProfile
 from core.logging_setup import redact
 from database.repository import Repository
-from orchestrator import prompts
 from orchestrator.agent_registry import AgentDefinition
 from orchestrator.schemas import AssignmentResponse, ImplementationReport, Plan, ReviewResult
 
@@ -67,34 +67,39 @@ def _status_message(text: str, task_id: str, context_id: str, meta: dict | None 
 class RoleAgentExecutor(AgentExecutor):
     """Executor A2A: recebe a tarefa estruturada, monta o prompt do papel, chama o backend e publica artefatos."""
 
-    def __init__(self, defn: AgentDefinition, backend: AgentBackend, repo: Repository):
+    def __init__(self, defn: AgentDefinition, backend: AgentBackend, repo: Repository,
+                 domain: DomainProfile | None = None):
         self.defn = defn
         self.backend = backend
         self.repo = repo
+        self.domain = domain
 
     # ---------------------------------------------------------------- prompts por skill
     def _prompt(self, skill: str, p: dict) -> str:
         me = self.defn.name
         other = "deepseek" if me == "gemini" else "gemini"
+        if self.domain is None:
+            raise AgentResponseError("Nenhum DomainProfile configurado no executor.")
+        pr = self.domain.get_prompts()
         if skill == "plan_feature":
-            return prompts.plan_prompt(me, p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"),
-                                       p.get("validation_errors"), p.get("previous_plan"))
+            return pr.plan_prompt(me, p["goal"], p.get("context_text", ""), int(p.get("max_subtasks", 5)), p.get("mcp_status"),
+                                  p.get("validation_errors"), p.get("previous_plan"))
         if skill == "respond_assignment":
-            return prompts.respond_assignment_prompt(me, p.get("planner", other), p.get("proposals", []), p.get("goal", ""),
-                                                     p.get("context_text", ""))
+            return pr.respond_assignment_prompt(me, p.get("planner", other), p.get("proposals", []), p.get("goal", ""),
+                                                p.get("context_text", ""))
         if skill == "implement_task":
-            return prompts.implement_prompt(me, p["task"], p["goal"], p.get("context_text", ""), p.get("feedback"),
-                                            int(p.get("cycle", 0)), p.get("previous_results", []), p.get("mcp_status"),
-                                            p.get("reviewer") or other)
+            return pr.implement_prompt(me, p["task"], p["goal"], p.get("context_text", ""), p.get("feedback"),
+                                       int(p.get("cycle", 0)), p.get("previous_results", []), p.get("mcp_status"),
+                                       p.get("reviewer") or other)
         if skill == "review_implementation":
-            return prompts.review_prompt(me, p.get("implementer") or other, p["task"], p.get("report", {}), p["goal"],
-                                         p.get("context_text", ""), int(p.get("cycle", 1)), int(p.get("max_cycles", 1)),
-                                         p.get("git_changes", []), p.get("checks"), p.get("mcp_status"), p.get("validate_plan"),
-                                         p.get("validation_errors"), p.get("previous_review"))
+            return pr.review_prompt(me, p.get("implementer") or other, p["task"], p.get("report", {}), p["goal"],
+                                    p.get("context_text", ""), int(p.get("cycle", 1)), int(p.get("max_cycles", 1)),
+                                    p.get("git_changes", []), p.get("checks"), p.get("mcp_status"), p.get("validate_plan"),
+                                    p.get("validation_errors"), p.get("previous_review"))
         if skill == "final_review":
-            return prompts.final_review_prompt(me, p["goal"], p.get("subtasks", []), p.get("context_text", ""),
-                                               p.get("self_authored"), p.get("watched_files"), p.get("validation_errors"),
-                                               p.get("previous_review"))
+            return pr.final_review_prompt(me, p["goal"], p.get("subtasks", []), p.get("context_text", ""),
+                                          p.get("self_authored"), p.get("watched_files"), p.get("validation_errors"),
+                                          p.get("previous_review"))
         raise AgentResponseError(f"Skill não suportada: {skill}")
 
     @staticmethod
@@ -207,13 +212,14 @@ class RoleAgentExecutor(AgentExecutor):
 
 
 def mount_a2a_agents(app, *, definitions: dict[str, AgentDefinition], backends: dict[str, AgentBackend], repo: Repository,
-                     task_store, public_url: str) -> dict[str, AgentCard]:
+                     task_store, public_url: str, domain: DomainProfile | None = None) -> dict[str, AgentCard]:
     """Monta Agent Card + JSON-RPC de cada agente no FastAPI usando os componentes oficiais do SDK."""
     cards: dict[str, AgentCard] = {}
     for name, backend in backends.items():
         defn = definitions[name]
         card = build_agent_card(defn, public_url, backend.model)
-        handler = DefaultRequestHandler(agent_executor=RoleAgentExecutor(defn, backend, repo), task_store=task_store, agent_card=card)
+        handler = DefaultRequestHandler(agent_executor=RoleAgentExecutor(defn, backend, repo, domain=domain),
+                                        task_store=task_store, agent_card=card)
         base = agent_base_path(name)
         add_a2a_routes_to_fastapi(
             app,

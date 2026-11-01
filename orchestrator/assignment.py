@@ -27,16 +27,22 @@ class AssignmentRules:
     path_rules: list[dict] = field(default_factory=list)
 
     @classmethod
-    def load(cls, path: Path) -> "AssignmentRules":
-        try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+    def from_dict(cls, data: dict) -> "AssignmentRules":
+        if not isinstance(data, dict):
             return cls()
         default = str(data.get("default_agent", "gemini")).lower()
         cats = {str(k).lower(): str(v).lower() for k, v in (data.get("categories") or {}).items() if str(v).lower() in AGENTS}
         rules = [r for r in (data.get("path_rules") or []) if isinstance(r, dict) and str(r.get("agent", "")).lower() in AGENTS
                  and r.get("pattern")]
         return cls(default if default in AGENTS else "gemini", cats, rules)
+
+    @classmethod
+    def load(cls, path: Path) -> "AssignmentRules":
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return cls()
+        return cls.from_dict(data)
 
     @staticmethod
     def _match(path: str, pattern: str) -> bool:
