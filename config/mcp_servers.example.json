@@ -1,0 +1,21 @@
+{
+  "_leia_me": [
+    "Copie para config/mcp_servers.json e ajuste. Nada aqui conecta automaticamente os agentes ao Roblox Studio:",
+    "a conexão MCP é configurada em cada ferramenta (Antigravity CLI / OpenCode). Este arquivo diz ao orquestrador",
+    "se cada agente DEVE ter acesso e como VERIFICAR o estado, para informar os agentes e coordenar recursos.",
+    "health_check.type: none | process | tcp | http. 'process' usa tasklist (Windows) apenas com o nome informado.",
+    "role por agente: scripts (editar scripts) | map (manipular elementos do mapa) | read_only."
+  ],
+  "servers": {
+    "roblox_studio": {
+      "description": "Roblox Studio MCP (mesma instância do Studio para os dois agentes)",
+      "enabled": false,
+      "health_check": {"type": "process", "target": "RobloxStudioBeta.exe"},
+      "agents": {
+        "gemini":   {"enabled": false, "role": "map",     "configured_in": "Antigravity CLI (agy mcp)"},
+        "deepseek": {"enabled": false, "role": "scripts", "configured_in": "OpenCode (opencode.json -> mcp)"}
+      },
+      "lock_namespace": "mcp:roblox_studio"
+    }
+  }
+}

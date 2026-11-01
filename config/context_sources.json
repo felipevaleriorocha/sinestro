@@ -1,0 +1,13 @@
+{
+  "_leia_me": "Fontes de contexto compartilhado (somente leitura) dentro do PROJECT_ROOT. Padrões glob relativos ao workspace. Ajuste para os nomes reais dos documentos do jogo.",
+  "exclude_dirs": [".git", "node_modules", "Packages", "DevPackages", "build", "out", "dist", ".venv", "__pycache__"],
+  "categories": [
+    {"id": "agents",       "label": "AGENTS.md",                 "patterns": ["AGENTS.md", "agents.md"], "required": true},
+    {"id": "readme",       "label": "README.md",                 "patterns": ["README.md", "readme.md"], "required": true},
+    {"id": "gdd",          "label": "GDD do projeto",            "patterns": ["**/*GDD*.md", "**/*gdd*.md", "**/*[Gg]ame[ _-][Dd]esign*.md"], "required": true},
+    {"id": "worlds",       "label": "Planejamento Mundos 1 e 2", "patterns": ["**/*[Mm]undo*1*.md", "**/*[Mm]undo*2*.md", "**/*[Ww]orld*1*.md", "**/*[Ww]orld*2*.md", "**/*[Mm]undos*.md", "**/*[Ww]orlds*.md"], "required": true},
+    {"id": "architecture", "label": "Documentação de arquitetura","patterns": ["**/*[Aa]rquitetura*.md", "**/*[Aa]rchitecture*.md", "**/ARCHITECTURE.md"], "required": true},
+    {"id": "decisions",    "label": "Decisões técnicas (docs)",  "patterns": ["**/*[Dd]ecis*.md", "**/adr/*.md", "**/ADR*.md"], "required": false}
+  ],
+  "max_files_per_category": 4
+}

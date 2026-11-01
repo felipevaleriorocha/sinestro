@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+orchestrator*.db
+orchestrator*.db-*
+orchestrator*.db.bak-*
+runtime/
+logs/
+config/mcp_servers.json
+.pytest_cache/

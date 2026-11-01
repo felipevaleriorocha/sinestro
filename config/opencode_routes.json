@@ -1,0 +1,23 @@
+{
+  "_leia_me": [
+    "Contrato HTTP do OpenCode usado pelo OpenCodeAdapter. Não há rotas hardcoded no código.",
+    "verified=true  -> rota confirmada no SEU ambiente ou na documentação oficial da versão instalada.",
+    "verified=false -> rota herdada do starter v0.2, ainda não confirmada para o OpenCode 2.2.5.",
+    "O adaptador tenta confirmar automaticamente as rotas lendo a especificação OpenAPI exposta pelo próprio servidor",
+    "(caminhos em openapi_candidates, somente GET, sem consumir tokens). Rotas não confirmadas bloqueiam a execução",
+    "enquanto OPENCODE_REQUIRE_VERIFIED_ROUTES=true. Depois de conferir em https://dev.opencode.ai/v2/docs/api,",
+    "ajuste path/método se necessário e marque verified=true com a fonte em 'source'."
+  ],
+  "openapi_candidates": ["/doc", "/api/doc", "/openapi.json", "/api/openapi.json"],
+  "routes": {
+    "info":             {"method": "GET",  "path": "/api/info",  "verified": true, "source": "validado no ambiente do usuário"},
+    "models":           {"method": "GET",  "path": "/api/model", "verified": true, "source": "validado no ambiente do usuário"},
+    "agents":           {"method": "GET",  "path": "/api/agent", "verified": true, "source": "validado no ambiente do usuário"},
+    "session_create":   {"method": "POST", "path": "/api/session", "verified": false, "source": "starter v0.2"},
+    "session_prompt":   {"method": "POST", "path": "/api/session/{session_id}/prompt", "verified": false, "source": "starter v0.2"},
+    "session_wait":     {"method": "POST", "path": "/api/experimental/session/{session_id}/wait", "verified": false, "source": "starter v0.2"},
+    "session_messages": {"method": "GET",  "path": "/api/session/{session_id}/message", "verified": false, "source": "starter v0.2",
+                         "query": {"limit": "100", "order": "desc"}},
+    "session_abort":    null
+  }
+}
