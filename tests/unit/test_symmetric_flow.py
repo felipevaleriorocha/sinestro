@@ -336,3 +336,24 @@ def test_negotiation_can_be_disabled_to_save_quota(harness, workspace):
             assert b["deepseek"].skill_calls("respond_assignment") == []
             assert d["subtasks"][0]["assignment"]["decided_by"] == "no_negotiation"
     run(go())
+
+
+def test_coordinator_refuses_self_review_even_if_state_is_corrupted(harness, workspace):
+    """Mesmo com o banco adulterado (assigned_to trocado depois da implementação), o autor nunca revisa."""
+    async def go():
+        b = build_mock_backends()
+        b["gemini"].quota_reason = "sem cota (simulada)"
+        b["deepseek"].responder = writer("deepseek", workspace)
+        async with harness(b) as h:
+            d = await start(h)
+            st = d["subtasks"][0]
+            assert st["status"] == "awaiting_review" and st["result"]["implemented_by"] == "deepseek"
+            repo = h.app.state.container.repo
+            repo.update_subtask(st["id"], assigned_to="gemini", reviewer="deepseek")  # corrupção simulada
+            b["gemini"].quota_reason = None
+            await h.client.post(f"/tasks/{d['id']}/resume")
+            d2 = await h.wait_done(d["id"])
+            assert b["deepseek"].skill_calls("review_implementation") == []
+            assert len(b["gemini"].skill_calls("review_implementation")) == 1
+            assert d2["subtasks"][0]["status"] == "approved"
+    run(go())

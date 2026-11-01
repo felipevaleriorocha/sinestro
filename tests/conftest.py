@@ -89,9 +89,9 @@ class AppHarness:
 def harness(make_settings):
     from api.main import create_app
 
-    def _make(backends, **overrides):
+    def _make(backends, checks=None, **overrides):
         settings = make_settings(**overrides)
-        app = create_app(settings, backends, a2a_in_process=True, configure_logging=False)
+        app = create_app(settings, backends, a2a_in_process=True, configure_logging=False, checks=checks)
         return AppHarness(app)
 
     return _make

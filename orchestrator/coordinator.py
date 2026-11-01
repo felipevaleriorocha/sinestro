@@ -224,7 +224,8 @@ class Coordinator:
 
     # ================================================================ 2. atribuição
     async def _negotiate_assignments(self, wf_id: str, goal: str, plan: dict) -> None:
-        subs = [s for s in self.tasks.subtasks(wf_id) if not s.get("assignment_json")]
+        # Só subtarefas ainda sem decisão e sem implementação (nunca reatribui trabalho já feito).
+        subs = [s for s in self.tasks.subtasks(wf_id) if not s.get("assignment") and not s.get("result")]
         if not subs:
             return
         planner = plan.get("planned_by") or "gemini"
@@ -340,6 +341,9 @@ class Coordinator:
         sid = sub["id"]
         review_only = sub["status"] == ST.AWAITING_REVIEW and isinstance(sub.get("result"), dict)
         implementer = sub.get("assigned_to") or sub["agent"]
+        if review_only:
+            # Quem de fato escreveu o relatório manda; o revisor é sempre o outro.
+            implementer = sub["result"].get("implemented_by") or implementer
         if not review_only:
             ok, reason = self.registry.can_accept(implementer)
             if not ok:
@@ -425,7 +429,7 @@ class Coordinator:
                 git_changes = self._record_changes(wf_id, sid, implementer, changes, report.files_modified, reserved, before.head)
                 for d in report.technical_decisions:
                     self.decisions.add(d[:120], d, author=implementer, status="proposed", workflow_id=wf_id, subtask_id=sid)
-                self.repo.update_subtask(sid, result_json=report.model_dump())
+                self.repo.update_subtask(sid, result_json={**report.model_dump(), "implemented_by": implementer})
                 self.tasks.event(wf_id, implementer, "implementation_report", report.model_dump(), subtask_id=sid)
                 self.locks.renew([self.locks.file_resource(f) for f in files], implementer)
                 if report.status in {"blocked", "failed"} and not report.issues:
@@ -506,6 +510,9 @@ class Coordinator:
     async def _review(self, ctx, goal, spec, report, git_changes, checks, mcp_status, files, review_ctx, refs):
         """Revisão com no máximo UMA reformulação por evidência inválida. Invalida se o revisor alterar arquivos."""
         wf_id, sid, implementer, reviewer = ctx["wf_id"], ctx["sid"], ctx["implementer"], ctx["reviewer"]
+        author = (self.repo.get_subtask(sid) or {}).get("result", {}) or {}
+        if reviewer == implementer or reviewer == author.get("implemented_by"):
+            raise RuntimeError(f"Autorrevisão bloqueada: {reviewer} implementou esta subtarefa.")
         watched = sorted({p for p in (list(files) + list(report.files_modified if report else []))
                           if self._safe_rel(p)})
         validate_plan = self._plan_to_validate(wf_id, reviewer)
