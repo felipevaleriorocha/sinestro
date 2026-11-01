@@ -106,7 +106,31 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .tgrid{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;align-items:start}
 #tnav{display:grid;gap:3px;position:sticky;top:60px} .tnav button{display:flex;justify-content:space-between;text-align:left} #tnav button.on{background:var(--raised);color:var(--text)}
 #tnav .grp{color:var(--muted);font-size:12px;margin:10px 6px 2px}
-.tbar{display:flex;gap:10px;margin-bottom:14px} #exsel{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px}
+.app-layout{display:flex;min-height:100vh}
+.sidebar{width:260px;background:#0c101d;border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:14px;position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
+.sidebar::-webkit-scrollbar{width:5px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.main-content{flex:1;min-width:0;display:flex;flex-direction:column}
+.btn-new-chat{width:100%;display:flex;align-items:center;gap:8px;background:#20283b;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s ease}
+.btn-new-chat:hover{background:#2a354f;border-color:var(--blue)}
+.sidebar-sec{display:flex;flex-direction:column;gap:4px}
+.sidebar-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;align-items:center;gap:6px;padding:6px 8px;margin-top:8px}
+.sidebar-subtasks-list,.sidebar-chats-list{display:flex;flex-direction:column;gap:2px}
+.subtask-item{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:8px;font-size:12px;color:#c8d3e2;cursor:pointer;transition:background .15s ease}
+.subtask-item:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-completed,.dot-approved,.dot-passed,.dot-ok{background:var(--green)}
+.dot-running,.dot-delegating,.dot-checking,.dot-reviewing,.dot-run{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+.dot-failed,.dot-rejected,.dot-unavailable,.dot-err,.dot-canceled{background:var(--err)}
+.dot-blocked,.dot-needs_human,.dot-paused,.dot-planned,.dot-pending,.dot-warn{background:var(--warn)}
+.chat-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s ease}
+.chat-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.chat-item.active{background:#1d263b;color:var(--text);font-weight:500}
+.clip1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+@media (max-width:850px){
+  .app-layout{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:relative;border-right:0;border-bottom:1px solid var(--line)}
+}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-height:200px}
 .subs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
 .sc,.box2{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:6px;align-content:start;margin-bottom:8px} .sc.hum{border-color:var(--warn)}
@@ -124,53 +148,83 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
 <body>
 <div class="banner" id="checksBanner">Nenhuma checagem automática ativa: as revisões dependem só dos modelos. Veja config/checks.json e .\scripts\check_integrations.ps1.</div>
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
-<header>
-  <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
-  <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
-  <span id="health" class="muted"></span>
-</header>
-<main id="home">
-  <section id="idle">
-    <h1>O que vamos construir hoje?</h1>
-    <div class="box">
-      <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
-      <div class="bar2">
-        <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
-        <div class="bar2-right">
-          <label class="auto-approve-wrap" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
-            <span class="auto-approve-txt">Auto-aprovar</span>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <button class="btn-new-chat" onclick="novo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Nova solicitação</span>
+      </button>
+    </div>
+
+    <!-- Lista de subtarefas da execução atual (estilo Imagem 1, sem números, com dots coloridos) -->
+    <div class="sidebar-sec" id="sidebarSubtasksSec" hidden>
+      <div class="sidebar-sec-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span>Subtarefas</span>
+      </div>
+      <div class="sidebar-subtasks-list" id="sidebarSubtasksList"></div>
+    </div>
+
+    <!-- Histórico dos últimos 10 prompts (estilo chats de IA Claude, Imagem 3) -->
+    <div class="sidebar-sec">
+      <div class="sidebar-sec-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Conversas e tarefas</span>
+      </div>
+      <div class="sidebar-chats-list" id="sidebarChatsList"></div>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header>
+      <span class="brand">Workspace Multi-Provider <span class="muted" id="ver"></span></span>
+      <nav id="nav"><button class="on" data-v="home" onclick="view('home')">Início</button><button data-v="tech" onclick="view('tech')">Técnico <span class="bd e" id="ecount"></span></button></nav>
+      <span id="health" class="muted"></span>
+    </header>
+    <main id="home">
+      <section id="idle">
+        <h1>O que vamos construir hoje?</h1>
+        <div class="box">
+          <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
+          <div class="bar2">
+            <div class="seg"><button class="on" data-m="plan_only" onclick="setMode(this)">Planejar</button><button data-m="full" onclick="setMode(this)">Fluxo completo</button></div>
+            <div class="bar2-right">
+              <label class="auto-approve-wrap" id="autoApproveToggleWrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
+                <span class="auto-approve-txt">Auto-aprovar</span>
+                <span class="toggle-switch">
+                  <input type="checkbox" id="autoApproveToggle" class="auto-approve-checkbox" onchange="toggleAutoApprove(this.checked)">
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </span>
+              </label>
+              <button class="send" onclick="createTask()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="run" hidden>
+        <div id="need"></div>
+        <div class="top-row">
+          <div class="cards" id="cards"></div>
+          <div class="sel-col" id="sel"></div>
+        </div>
+        <div class="tl" id="tl"></div>
+        <div class="run-footer">
+          <label class="auto-approve-run-wrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
             <span class="toggle-switch">
-              <input type="checkbox" id="autoApproveToggle" class="auto-approve-checkbox" onchange="toggleAutoApprove(this.checked)">
+              <input type="checkbox" class="auto-approve-checkbox" onchange="toggleAutoApprove(this.checked)">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </span>
+            <span class="auto-approve-run-txt" id="autoApproveRunTxt">Auto aprovação desativada</span>
           </label>
-          <button class="send" onclick="createTask()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
-      </div>
-    </div>
-  </section>
-  <section id="run" hidden>
-    <div id="need"></div>
-    <div class="top-row">
-      <div class="cards" id="cards"></div>
-      <div class="sel-col" id="sel"></div>
-    </div>
-    <div class="tl" id="tl"></div>
-    <div class="run-footer">
-      <label class="auto-approve-run-wrap" title="Aprovar automaticamente solicitações de permissão dos agentes (modifica AGY_AUTO_APPROVE_PERMISSIONS no .env)">
-        <span class="toggle-switch">
-          <input type="checkbox" class="auto-approve-checkbox" onchange="toggleAutoApprove(this.checked)">
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </span>
-        <span class="auto-approve-run-txt" id="autoApproveRunTxt">Auto aprovação desativada</span>
-      </label>
-    </div>
-  </section>
-</main>
-<main id="tech" hidden>
-  <div class="tbar"><select id="exsel" onchange="if(this.value)select(this.value)"></select></div>
-  <div class="tgrid"><nav id="tnav" class="tnav"></nav><div class="card" id="tbody"></div></div>
-</main>
+      </section>
+    </main>
+    <main id="tech" hidden>
+      <div class="tgrid"><nav id="tnav" class="tnav"></nav><div class="card" id="tbody"></div></div>
+    </main>
+  </div>
+</div>
 <div id="toast"></div>
 <script>
 const $ = s => document.querySelector(s);
@@ -324,16 +378,55 @@ function renderRun(force){
     ${LK.length?`<div class="lk" style="margin-top:4px">${LK.length} arquivo(s) reservado(s) <a onclick="tsec='locks';view('tech')">ver</a></div>`:''}
   `, force);
 }
+function renderSidebar(){
+  const d = D;
+  const subSec = $('#sidebarSubtasksSec');
+  const subList = $('#sidebarSubtasksList');
+  if (subSec && subList) {
+    const subs = (d && d.subtasks) || [];
+    if (subs.length > 0) {
+      subSec.hidden = false;
+      subList.innerHTML = subs.map(s => {
+        const st = s.status || 'pending';
+        return `<div class="subtask-item" onclick="tsec='subtasks';view('tech')" title="${esc(s.plan_id || s.id)}: ${esc(s.title)} (${esc(st)})">
+          <span class="status-dot dot-${esc(st)}"></span>
+          <span class="clip1">${esc(s.plan_id || s.id)} · ${esc(s.title)}</span>
+        </div>`;
+      }).join('');
+    } else {
+      subSec.hidden = true;
+      subList.innerHTML = '';
+    }
+  }
+
+  const chatList = $('#sidebarChatsList');
+  if (chatList) {
+    const recent = (WF || []).slice(0, 10);
+    if (recent.length > 0) {
+      chatList.innerHTML = recent.map(w => {
+        const isAct = w.id === selected;
+        const st = w.status || 'queued';
+        return `<div class="chat-item ${isAct ? 'active' : ''}" onclick="select('${esc(w.id)}')" title="${esc(w.goal)} (${esc(st)})">
+          <span class="status-dot dot-${esc(st)}"></span>
+          <span class="clip1">${esc(w.goal)}</span>
+        </div>`;
+      }).join('');
+    } else {
+      chatList.innerHTML = '<span class="muted" style="font-size:12px;padding:8px">Nenhuma tarefa recente</span>';
+    }
+  }
+}
 function renderHome(force){
   const r=!!(selected&&D), c=$('#cards');
-  if(r!==SHOWRUN){ SHOWRUN=r; $('#idle').hidden=r; $('#run').hidden=!r; c.classList.remove('in'); if(r){ renderRun(true); setTimeout(()=>c.classList.add('in'),80); } else $('#goal').focus(); return; }
-  if(r) renderRun(force);
+  if(r!==SHOWRUN){ SHOWRUN=r; $('#idle').hidden=r; $('#run').hidden=!r; c.classList.remove('in'); if(r){ renderRun(true); setTimeout(()=>c.classList.add('in'),80); } else $('#goal').focus(); }
+  else if(r) renderRun(force);
+  renderSidebar();
 }
 function setMode(b){ mode=b.dataset.m; document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b)); }
 async function createTask(){ const goal = $('#goal').value.trim(); if(goal.length<8) return toast('Descreva melhor a solicitação.');
   try{ const r = await api('/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({goal, mode})});
   selected=r.id; hold=false; D={id:r.id, goal, status:'queued', subtasks:[], events:[]}; $('#goal').value=''; $('#goal').style.height=''; renderHome(true); refresh(); }catch(e){ toast(e.message); } }
-function novo(){ selected=null; D=null; hold=true; renderHome(true); }
+function novo(){ selected=null; D=null; hold=true; renderHome(true); renderSidebar(); }
 $('#goal').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){ e.preventDefault(); createTask(); } });
 $('#goal').addEventListener('input', e => { e.target.style.height='auto'; e.target.style.height=e.target.scrollHeight+'px'; });
 function view(v){ vw=v; $('#home').hidden=v!=='home'; $('#tech').hidden=v!=='tech'; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); if(v==='tech') loadTech(true); else renderHome(true); }
@@ -376,8 +469,9 @@ async function discover(){ try{ const r = await api('/a2a/discovery'); toast(Obj
 async function loadMcp(){ try{ MCPD = await api('/mcp/status'); if(vw==='tech'&&tsec==='mcp') renderTech(); }catch(e){} }
 async function loadWorkflows(force){ try{ WF = await api('/tasks?limit=30'); }catch(e){ return; }
   if(!selected && !hold){ const a=WF.find(w=>ACTIVE.includes(w.status)); if(a) selected=a.id; }
+  renderSidebar();
   if(vw==='tech') renderExSel(); }
-function select(id){ selected=id; hold=false; loadWorkflows(true); loadDetail(true); }
+function select(id){ selected=id; hold=false; loadWorkflows(true); loadDetail(true); renderSidebar(); }
 async function act(kind){ try{ await api(`/tasks/${selected}/${kind}`, {method:'POST'}); toast(kind==='cancel'?'Cancelamento solicitado.':'Retomando.'); }catch(e){ toast(e.message);} loadDetail(true); }
 async function loadDetail(force){
   if(!selected){ renderHome(force); return; }
@@ -418,7 +512,7 @@ const subCard = s => { const hum=s.status==='needs_human', txt=s.error||(s.revie
     ${s.escalation?`<details><summary class="muted">resumo dos dois lados</summary><pre>${esc(JSON.stringify(s.escalation,null,2))}</pre></details>`:''}
     ${hum?`<div class="row">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${esc(s.id)}','${a}')">${a}</button>`).join('')}</div>`:''}</div>`; };
 const row = (tm,who,tag,body,cls) => `<details class="lr ${cls||''}"><summary><span class="muted">${t(tm)}</span><b>${esc(who)}</b><span class="tag">${esc(tag)}</span><span class="clip">${esc(String(body||'').slice(0,140))}</span></summary><pre>${esc(body)}</pre></details>`;
-function renderExSel(){ const el=$('#exsel'); if(document.activeElement===el) return;
+function renderExSel(){ const el=$('#exsel'); if(!el || document.activeElement===el) return;
   const h=(selected?'':'<option value="">Selecione uma execução…</option>')+WF.map(w=>`<option value="${esc(w.id)}" ${w.id===selected?'selected':''}>${esc(t(w.created_at))} · ${esc(w.goal.slice(0,70))} · ${esc(w.status)}</option>`).join('');
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
 async function loadTech(force){
