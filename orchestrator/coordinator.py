@@ -103,17 +103,23 @@ class Coordinator:
     # ================================================================ workflow
     async def _run_guarded(self, wf_id: str, resume: bool) -> None:
         async with self._workflow_gate:
+            unconfirmed_stop = False
             try:
                 await self.run_workflow(wf_id, resume)
             except asyncio.CancelledError:
                 self.tasks.set_status(wf_id, WF.INTERRUPTED, error="Execução interrompida (serviço encerrando).")
                 raise
             except Exception as exc:  # noqa: BLE001
+                if getattr(exc, "code", None) == "timeout" or isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in str(exc).lower():
+                    unconfirmed_stop = True
+                    self.tasks.event(wf_id, "orchestrator", "locks_retained_unconfirmed_stop",
+                                     "Locks retidos: processo externo não confirmou encerramento (timeout).", "warning")
                 log.exception("Workflow %s falhou", wf_id)
                 self.tasks.set_status(wf_id, WF.FAILED, error=redact(f"{type(exc).__name__}: {exc}"))
                 self.tasks.event(wf_id, "orchestrator", "error", redact(str(exc)), "error")
             finally:
-                self.locks.release_workflow(wf_id)
+                if not unconfirmed_stop:
+                    self.locks.release_workflow(wf_id)
                 self.context.forget(wf_id)
 
     def _should_cancel(self, wf_id: str):
@@ -220,7 +226,7 @@ class Coordinator:
             detail = f" ({res.state}/{res.error_code}: {res.status_message})" if res else ""
             raise WorkflowAbort(f"Nenhum agente disponível para planejar{detail}.", WF.BLOCKED)
 
-        analyzer = DependencyAnalyzer(self.s.project_root)
+        analyzer = DependencyAnalyzer(self.s.project_root, policy_path=self.s.dependency_policy_file)
         reformulations = 0
         previous_plan = None
         while True:
@@ -458,8 +464,15 @@ class Coordinator:
         except A2ADelegationError as exc:
             self.repo.update_subtask(sid, status=ST.FAILED, error=f"{exc.code}: {exc}")
             self.tasks.event(wf_id, "orchestrator", "a2a_error", f"{exc.code}: {exc}", "error", sid)
+            if exc.code == "timeout":
+                self.tasks.event(wf_id, "orchestrator", "locks_retained_unconfirmed_stop",
+                                 f"Locks mantidos para subtarefa {sid}: timeout no agente {implementer}.", "warning", sid)
         finally:
-            self.locks.release(resources, implementer, sid)
+            final_sub = self.repo.get_subtask(sid)
+            st_status = final_sub["status"] if final_sub else "failed"
+            self.repo.finish_stage(stage_id, st_status)
+            if not (final_sub and final_sub.get("error") and "timeout" in str(final_sub.get("error")).lower()):
+                self.locks.release(resources, implementer, sid)
 
     # ---------------------------------------------------------------- ciclo da subtarefa
     async def _cycle(self, wf_id, goal, sub, implementer, reviewer, files, reserved, mcp_status, previous, review_only) -> None:

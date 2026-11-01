@@ -71,10 +71,14 @@ class FileLockManager:
         con.execute("INSERT INTO lock_events(created_at, resource, owner, action, detail) VALUES(?,?,?,?,?)",
                     (utc_now(), resource, owner, action, detail[:500]))
 
-    def release_expired(self) -> int:
+    def release_expired(self, force: bool = False) -> int:
         now = utc_now()
         with self.repo.connect() as con:
             rows = con.execute("SELECT resource, owner FROM file_locks WHERE expires_at <= ?", (now,)).fetchall()
+            if not force:
+                for r in rows:
+                    self._log(con, r["resource"], r["owner"], "expired_retained", "retido por segurança até reconciliação")
+                return 0
             for r in rows:
                 self._log(con, r["resource"], r["owner"], "expired", "liberado automaticamente por timeout")
             con.execute("DELETE FROM file_locks WHERE expires_at <= ?", (now,))
@@ -83,7 +87,7 @@ class FileLockManager:
     def acquire(self, resources: list[str], owner: str, workflow_id: str | None = None, subtask_id: str | None = None,
                 ttl_seconds: int | None = None) -> LockGrant:
         resources = sorted(set(resources))
-        ttl = ttl_seconds or self.ttl_seconds
+        ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
         now_dt = datetime.now(timezone.utc)
         now, expires = now_dt.isoformat(), (now_dt + timedelta(seconds=ttl)).isoformat()
         with self.repo.connect() as con:
@@ -124,7 +128,8 @@ class FileLockManager:
                 await asyncio.sleep(poll)
 
     def renew(self, resources: list[str], owner: str, ttl_seconds: int | None = None) -> None:
-        expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds or self.ttl_seconds)).isoformat()
+        ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
+        expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat()
         with self.repo.connect() as con:
             for res in resources:
                 con.execute("UPDATE file_locks SET expires_at=? WHERE resource=? AND owner=?", (expires, res, owner))

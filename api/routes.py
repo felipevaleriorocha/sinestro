@@ -97,7 +97,7 @@ def analyze_task(task_id: str, request: Request) -> dict:
     plan = wf.get("plan") or {}
     if not plan.get("tasks"):
         raise HTTPException(409, "Workflow ainda não possui plano.")
-    result = DependencyAnalyzer(c.settings.project_root).analyze(plan["tasks"]).to_dict()
+    result = DependencyAnalyzer(c.settings.project_root, policy_path=c.settings.dependency_policy_file).analyze(plan["tasks"]).to_dict()
     return result
 
 @router.get("/tasks/{task_id}/report", tags=["Tarefas"])

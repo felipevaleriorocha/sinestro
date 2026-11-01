@@ -5,6 +5,7 @@ subtarefas, constrói o DAG e produz grupos topológicos conservadores.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -78,8 +79,18 @@ class AnalysisResult:
 class DependencyAnalyzer:
     """Valida e agrupa subtarefas. Em dúvida, nunca libera paralelismo."""
 
-    def __init__(self, workspace: Path, *, policy_version: str = "1.0", mcp_parallel_safe: bool = False):
+    def __init__(self, workspace: Path, *, policy_version: str = "1.0", mcp_parallel_safe: bool = False,
+                 policy_path: Path | None = None):
         self.workspace = Path(workspace)
+        if policy_path:
+            p = Path(policy_path)
+            if p.is_file():
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8"))
+                    policy_version = str(data.get("version") or policy_version)
+                    mcp_parallel_safe = bool(data.get("mcp_parallel_safe", mcp_parallel_safe))
+                except Exception:
+                    pass
         self.policy_version = policy_version
         self.mcp_parallel_safe = mcp_parallel_safe
 
