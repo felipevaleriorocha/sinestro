@@ -20,7 +20,7 @@
   tr.sel { background:#1f2e3f; } tr.click { cursor:pointer; } tr.click:hover { background:#1b2836; }
   .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); white-space:nowrap; }
   .s-ok, .s-completed, .s-approved, .s-passed { color:var(--ok); border-color:var(--ok); }
-  .s-warn, .s-blocked, .s-needs_attention, .s-interrupted, .s-completed_with_issues, .s-quota_exceeded, .s-contract_not_verified, .s-planned, .s-changes_requested, .s-skipped { color:var(--warn); border-color:var(--warn); }
+  .s-warn, .s-needs_human, .s-paused, .s-awaiting_review, .s-checking, .s-no_active_checks, .s-blocked, .s-needs_attention, .s-interrupted, .s-completed_with_issues, .s-quota_exceeded, .s-contract_not_verified, .s-planned, .s-changes_requested, .s-skipped { color:var(--warn); border-color:var(--warn); }
   .s-err, .s-failed, .s-rejected, .s-unavailable, .s-canceled { color:var(--err); border-color:var(--err); }
   .s-run, .s-planning, .s-delegating, .s-reviewing, .s-running, .s-queued, .s-pending { color:var(--info); border-color:var(--info); }
   .agent { border:1px solid var(--line); border-radius:6px; padding:8px; margin-bottom:8px; }
@@ -37,6 +37,7 @@
 </style>
 </head>
 <body>
+<div class="banner" id="checksBanner">Nenhuma checagem automática ativa: as revisões dependem só dos modelos. Veja config/checks.json e .\scripts\check_integrations.ps1.</div>
 <div class="banner" id="mockBanner">MODO SIMULADO (ORCH_MOCK_AGENTS): agentes mock — nada aqui é integração real com os modelos.</div>
 <header>
   <h1>Orquestrador Multiagente Roblox <span class="muted" id="ver"></span></h1>
@@ -93,7 +94,8 @@ function toast(m){ const e=$('#toast'); e.textContent=m; e.style.display='block'
 async function api(path, opt){ const r = await fetch(path, opt); if(!r.ok){ let d=''; try{d=(await r.json()).detail}catch{}; throw new Error(typeof d==='string'?d:JSON.stringify(d)||r.status);} return r.json(); }
 
 async function loadHealth(){ try{ const h = await api('/health'); $('#mockBanner').style.display = h.mock_mode?'block':'none'; $('#ver').textContent = 'v'+h.version;
-  $('#health').innerHTML = `workspace ${h.project_root_exists?pill('ok'):pill('failed')} git ${h.git_repo?pill('ok'):pill('blocked')}`; }catch(e){ $('#health').textContent='API indisponível'; } }
+  $('#health').innerHTML = `workspace ${h.project_root_exists?pill('ok'):pill('failed')} git ${h.git_repo?pill('ok'):pill('blocked')}`; }catch(e){ $('#health').textContent='API indisponível'; }
+  try{ const c = await api('/checks/status'); $('#checksBanner').style.display = c.any_active?'none':'block'; }catch(e){} }
 
 async function loadAgents(){ try{ const list = await api('/agents'); $('#agents').innerHTML = list.map(a => {
   const h = a.health || {}; return `<div class="agent"><b>${esc(a.display_name)}</b> ${pill(h.status||'unknown')} ${a.accepting_work?'':pill('blocked')}
@@ -120,24 +122,32 @@ function select(id){ selected = id; loadWorkflows(); loadDetail(); }
 
 async function act(kind){ try{ await api(`/tasks/${selected}/${kind}`, {method:'POST'}); toast(kind==='cancel'?'Cancelamento solicitado.':'Retomando.'); }catch(e){ toast(e.message);} loadDetail(); }
 
-const TABS = {subtasks:'Subtarefas', messages:'Conversas A2A', events:'Histórico', files:'Arquivos', plan:'Plano/Resultado'};
+async function decide(sid, action){ const note = prompt(`Decisão "${action}" — nota para os agentes (opcional):`, ''); if (note===null) return;
+  try{ await api(`/tasks/${selected}/subtasks/${sid}/decision`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action, note})});
+  toast('Decisão registrada. Clique em Retomar quando terminar as decisões.'); }catch(e){ toast(e.message); } loadDetail(); }
+
+const TABS = {subtasks:'Subtarefas', messages:'Conversas A2A', events:'Histórico', files:'Arquivos', plan:'Plano/Métricas/Resultado'};
 async function loadDetail(){ if(!selected) return; $('#detail').style.display='block';
   let d; try{ d = await api(`/tasks/${selected}`); }catch(e){ return; }
   $('#dTitle').innerHTML = `${esc(d.goal.slice(0,90))} ${pill(d.status)}`;
   $('#btnCancel').style.display = ['queued','planning','delegating','reviewing'].includes(d.status)?'':'none';
-  $('#btnResume').style.display = ['blocked','failed','interrupted','completed_with_issues','planned','canceled'].includes(d.status)&&!d.running?'':'none';
+  $('#btnResume').style.display = ['blocked','failed','interrupted','completed_with_issues','planned','canceled','needs_human','paused'].includes(d.status)&&!d.running?'':'none';
   $('#tabs').innerHTML = Object.entries(TABS).map(([k,v]) => `<button class="${k===tab?'on':''}" onclick="tab='${k}';loadDetail()">${v}</button>`).join('');
   let html = '';
-  if (tab==='subtasks') html = `<table><tr><th>#</th><th>Subtarefa</th><th>Agente</th><th>Ciclos</th><th>Estado</th><th>Detalhe</th></tr>${(d.subtasks||[]).map(s =>
-      `<tr><td>${esc(s.plan_id)}</td><td>${esc(s.title)}<div class="muted">${esc((s.files||[]).join(', '))}</div></td><td>${esc(s.agent)}</td><td>${s.review_cycles}</td><td>${pill(s.status)}</td>
-      <td><pre>${esc(s.error || (s.review&&s.review.summary) || (s.result&&s.result.summary) || '')}</pre></td></tr>`).join('')}</table>`;
+  if (tab==='subtasks') html = (d.planned_by_fallback?`<div class="lvl-warning" style="margin-bottom:6px">Plano feito por ${esc(d.planned_by)} (fallback): será validado pelo outro agente na primeira revisão.</div>`:'') +
+    `<table><tr><th>#</th><th>Subtarefa</th><th>Implementou</th><th>Revisou</th><th>Motivo da atribuição</th><th>Ajustes / checagem / tentativas</th><th>Estado</th><th>Detalhe</th></tr>${(d.subtasks||[]).map(s =>
+      `<tr><td>${esc(s.plan_id)}</td><td>${esc(s.title)}<div class="muted">${esc((s.files||[]).join(', '))}</div></td>
+      <td>${esc(s.assigned_to||s.agent)}</td><td>${esc(s.reviewer||'—')}</td><td class="muted">${esc(s.assignment_reason||'')}</td>
+      <td>${s.review_cycles} / ${s.check_fix_attempts??0} / ${s.impl_attempts??0}<div class="muted">checagem: ${esc((s.checks&&s.checks.status)||'—')}</div></td>
+      <td>${pill(s.status)}${s.status==='needs_human'?`<div class="row">${['approve','retry','reassign','reject'].map(a=>`<button class="sec" onclick="decide('${s.id}','${a}')">${a}</button>`).join('')}</div>`:''}</td>
+      <td><pre>${esc(s.error || (s.review&&s.review.summary) || (s.result&&s.result.summary) || '')}</pre>${s.escalation?`<details><summary class="muted">resumo dos dois lados</summary><pre>${esc(JSON.stringify(s.escalation,null,2))}</pre></details>`:''}</td></tr>`).join('')}</table>`;
   if (tab==='messages'){ const m = await api(`/tasks/${selected}/messages`); html = `<table><tr><th>Hora</th><th>De → Para</th><th>Skill</th><th>Estado A2A</th><th>Resumo</th></tr>${m.map(x =>
       `<tr><td class="muted">${t(x.created_at)}</td><td>${esc(x.sender)} → ${esc(x.recipient)}<div class="muted">${esc(x.direction)}</div></td><td>${esc(x.skill||'')}</td><td>${x.a2a_state?pill(x.a2a_state):''}<div class="muted">${esc((x.a2a_task_id||'').slice(0,8))}</div></td><td><pre>${esc(x.summary)}</pre></td></tr>`).join('')}</table>`; }
   if (tab==='events') html = `<table><tr><th>Hora</th><th>Agente</th><th>Evento</th><th>Conteúdo</th></tr>${d.events.map(e =>
       `<tr class="lvl-${esc(e.level)}"><td class="muted">${t(e.created_at)}</td><td>${esc(e.agent)}</td><td>${esc(e.event)}</td><td><pre>${esc(e.content.slice(0,1500))}</pre></td></tr>`).join('')}</table>`;
   if (tab==='files'){ const f = await api(`/files/changes?workflow_id=${selected}`); html = f.length ? `<table><tr><th>Arquivo</th><th>Tipo</th><th>Agente</th><th>Na reserva</th><th>Fonte</th></tr>${f.map(c =>
       `<tr><td>${esc(c.path)}</td><td>${esc(c.change_type)}</td><td>${esc(c.agent)}</td><td>${c.within_reservation?pill('ok'):pill('failed')}</td><td class="muted">${esc(c.source)}</td></tr>`).join('')}</table>` : '<span class="muted">Nenhuma alteração registrada.</span>'; }
-  if (tab==='plan') html = `<pre style="max-height:500px">${esc(JSON.stringify({plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
+  if (tab==='plan') html = `<pre style="max-height:500px">${esc(JSON.stringify({metrics:d.metrics, plan:d.plan, result:d.result, context:d.context, error:d.error}, null, 2))}</pre>`;
   $('#tabBody').innerHTML = html; }
 
 const GTABS = {errors:'Erros', runs:'Execuções dos modelos', locks:'Reservas de arquivos', decisions:'Decisões técnicas', messages:'Todas as conversas'};
