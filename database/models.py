@@ -7,8 +7,9 @@ As tarefas A2A do SDK ficam na tabela padrão `tasks` do SDK em orchestrator_a2a
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 BASE_TABLES = [
     # --- v0.2 (preservadas) ---
@@ -152,6 +153,26 @@ ADDED_COLUMNS = {
     ],
 }
 
+# Schema 4 (papéis simétricos). Somente ADD COLUMN: idempotente e sem perda de dados.
+ADDED_COLUMNS_V4 = {
+    "tasks": [
+        ("planned_by", "TEXT"),
+        ("planned_by_fallback", "INTEGER NOT NULL DEFAULT 0"),
+        ("metrics_json", "TEXT"),
+    ],
+    "subtasks": [
+        ("assigned_to", "TEXT"),
+        ("reviewer", "TEXT"),
+        ("assignment_reason", "TEXT"),
+        ("assignment_json", "TEXT"),
+        ("checks_json", "TEXT"),
+        ("escalation_json", "TEXT"),
+        ("human_decision_json", "TEXT"),
+        ("check_fix_attempts", "INTEGER NOT NULL DEFAULT 0"),
+        ("impl_attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ],
+}
+
 INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_task_events_task ON task_events(task_id)",
     "CREATE INDEX IF NOT EXISTS ix_subtasks_wf ON subtasks(workflow_id)",
@@ -161,14 +182,59 @@ INDEXES = [
 ]
 
 
-def migrate(con: sqlite3.Connection) -> None:
-    for ddl in BASE_TABLES:
-        con.execute(ddl)
-    for table, cols in ADDED_COLUMNS.items():
+def read_schema_version(db_path: Path) -> int | None:
+    """Versão do banco existente: None = banco novo/vazio; 2 = v0.2 (sem schema_meta); 3+ = schema_meta."""
+    if not db_path.is_file() or db_path.stat().st_size == 0:
+        return None
+    con = sqlite3.connect(db_path)
+    try:
+        tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "tasks" not in tables:
+            return None
+        if "schema_meta" not in tables:
+            return 2
+        row = con.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()
+        return int(row[0]) if row else 2
+    finally:
+        con.close()
+
+
+def backup_before_migration(db_path: Path) -> Path | None:
+    """Copia o banco para <nome>.bak-v<versão> antes de subir o schema (não sobrescreve backup existente).
+
+    Usa a API de backup do SQLite (consistente mesmo com WAL).
+    """
+    version = read_schema_version(db_path)
+    if version is None or version >= SCHEMA_VERSION:
+        return None
+    bak = db_path.with_name(f"{db_path.name}.bak-v{version}")
+    if bak.exists():
+        return None
+    src = sqlite3.connect(db_path)
+    dst = sqlite3.connect(bak)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
+    return bak
+
+
+def _add_columns(con: sqlite3.Connection, spec: dict) -> None:
+    for table, cols in spec.items():
         existing = {r[1] for r in con.execute(f"PRAGMA table_info({table})").fetchall()}
         for name, decl in cols:
             if name not in existing:
                 con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
+def migrate(con: sqlite3.Connection) -> None:
+    for ddl in BASE_TABLES:
+        con.execute(ddl)
+    _add_columns(con, ADDED_COLUMNS)
+    _add_columns(con, ADDED_COLUMNS_V4)
+    # Linhas antigas: quem implementou era `agent`. Revisor fica NULL (não inventamos histórico).
+    con.execute("UPDATE subtasks SET assigned_to=agent WHERE assigned_to IS NULL")
     for ddl in INDEXES:
         con.execute(ddl)
     con.execute(

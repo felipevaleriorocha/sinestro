@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from core.logging_setup import redact
-from database.models import migrate
+from database.models import backup_before_migration, migrate
 
 ACTIVE_WORKFLOW_STATES = ("queued", "planning", "running", "delegating", "reviewing")
 
@@ -39,6 +39,7 @@ class Repository:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self.backup_path = backup_before_migration(self.db_path)
         raw = sqlite3.connect(self.db_path, timeout=30, isolation_level=None)
         try:
             raw.execute("PRAGMA journal_mode=WAL")  # precisa ser fora de transação
@@ -73,7 +74,8 @@ class Repository:
             )
 
     def update_workflow(self, workflow_id: str, **fields: Any) -> None:
-        allowed = {"status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested"}
+        allowed = {"status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested",
+                   "planned_by", "planned_by_fallback", "metrics_json", "mode"}
         sets, params = ["updated_at=?"], [utc_now()]
         for key, value in fields.items():
             if key not in allowed:
@@ -94,9 +96,10 @@ class Repository:
         if not row:
             return None
         d = dict(row)
-        for k in ("result_json", "context_sources_json", "plan_json"):
+        for k in ("result_json", "context_sources_json", "plan_json", "metrics_json"):
             d[k.replace("_json", "")] = _loads(d.pop(k, None))
         d["cancel_requested"] = bool(d.get("cancel_requested"))
+        d["planned_by_fallback"] = bool(d.get("planned_by_fallback"))
         return d
 
     def list_workflows(self, limit: int = 50, status: str | None = None) -> list[dict]:
@@ -159,15 +162,19 @@ class Repository:
         with self.connect() as con:
             con.execute(
                 """INSERT INTO subtasks(id, workflow_id, seq, plan_id, title, agent, status, spec_json, files_json,
-                   depends_on_json, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   depends_on_json, created_at, updated_at, assigned_to) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     sub["id"], sub["workflow_id"], sub["seq"], sub.get("plan_id"), sub["title"], sub["agent"], "pending",
-                    _dumps(sub["spec"]), _dumps(sub.get("files", [])), _dumps(sub.get("depends_on", [])), now, now,
+                    _dumps(sub["spec"]), _dumps(sub.get("files", [])), _dumps(sub.get("depends_on", [])), now, now, sub["agent"],
                 ),
             )
 
     def update_subtask(self, subtask_id: str, **fields: Any) -> None:
-        allowed = {"status", "agent", "review_cycles", "a2a_context_id", "last_a2a_task_id", "result_json", "review_json", "error"}
+        allowed = {"status", "agent", "review_cycles", "a2a_context_id", "last_a2a_task_id", "result_json", "review_json", "error",
+                   "assigned_to", "reviewer", "assignment_reason", "assignment_json", "checks_json", "escalation_json",
+                   "human_decision_json", "check_fix_attempts", "impl_attempts"}
+        if fields.get("assigned_to") and fields.get("reviewer") and fields["assigned_to"] == fields["reviewer"]:
+            raise ValueError("reviewer não pode ser igual a assigned_to (autorrevisão proibida).")
         sets, params = ["updated_at=?"], [utc_now()]
         for key, value in fields.items():
             if key not in allowed:
@@ -195,7 +202,8 @@ class Repository:
         out = []
         for r in rows:
             d = dict(r)
-            for k in ("spec_json", "files_json", "depends_on_json", "result_json", "review_json"):
+            for k in ("spec_json", "files_json", "depends_on_json", "result_json", "review_json", "assignment_json", "checks_json",
+                      "escalation_json", "human_decision_json"):
                 d[k.replace("_json", "")] = _loads(d.pop(k, None))
             out.append(d)
         return out
