@@ -4,90 +4,29 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
 
-
-# ---------------------------------------------------------------- erros tipados
-class AgentError(RuntimeError):
-    code = "agent_error"
-    retryable = False
-
-
-class AgentUnavailableError(AgentError):
-    """Servidor/CLI fora do ar ou modelo indisponível. Não executar a tarefa."""
-    code = "agent_unavailable"
-    retryable = True
-
-
-class AgentConnectionError(AgentUnavailableError):
-    code = "connection_failed"
-
-
-class ModelUnavailableError(AgentUnavailableError):
-    code = "model_unavailable"
-
-
-class QuotaExceededError(AgentUnavailableError):
-    code = "quota_exceeded"
-
-    def __init__(self, message: str, retry_after_seconds: int | None = None):
-        super().__init__(message)
-        self.retry_after_seconds = retry_after_seconds
-
-
-class AgentTimeoutError(AgentError):
-    code = "timeout"
-    retryable = True
-
-
-class AgentAuthError(AgentError):
-    code = "auth_failed"
-
-
-class AgentResponseError(AgentError):
-    code = "invalid_response"
-
-
-class ContractNotVerifiedError(AgentUnavailableError):
-    """Rota da API ainda não confirmada para a versão instalada; não chutar endpoints."""
-    code = "contract_not_verified"
-
-
-class AgentCancelledError(AgentError):
-    code = "cancelled"
-
-
-# ---------------------------------------------------------------- resultados
-@dataclass
-class AgentResult:
-    text: str
-    model: str | None = None
-    session_id: str | None = None
-    usage: dict | None = None
-    duration_seconds: float | None = None
-    num_turns: int | None = None
-    raw_status: str | None = None
-    extra: dict = field(default_factory=dict)
-
-
-@dataclass
-class AgentHealth:
-    name: str
-    available: bool
-    status: str  # ok | degraded | unavailable | quota_exceeded | not_configured | unknown
-    detail: str = ""
-    model: str | None = None
-    checks: dict = field(default_factory=dict)
-    checked_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-    def to_dict(self) -> dict:
-        return {
-            "name": self.name, "available": self.available, "status": self.status, "detail": self.detail,
-            "model": self.model, "checks": self.checks, "checked_at": self.checked_at,
-        }
-
+from core.agent import Agent, AgentDefinition, SkillDef
+from core.capabilities import CapabilityRegistry, ModelCapability, ModelSpec
+from core.providers import (
+    AgentAuthError,
+    AgentCancelledError,
+    AgentConnectionError,
+    AgentError,
+    AgentHealth,
+    AgentResponseError,
+    AgentResult,
+    AgentTimeoutError,
+    AgentUnavailableError,
+    ContractNotVerifiedError,
+    ModelUnavailableError,
+    Provider,
+    ProviderError,
+    ProviderHealth,
+    ProviderResult,
+    ProviderUnavailableError,
+    QuotaExceededError,
+)
 
 # Skills que não devem editar arquivos: o adaptador usa modo/agente somente leitura quando disponível.
 READ_ONLY_SKILLS = frozenset({"plan_feature", "respond_assignment", "review_implementation", "final_review"})
@@ -113,7 +52,7 @@ class QuotaCooldown:
         self.state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def mark(self, message: str, retry_after: int | None = None) -> None:
-        from datetime import timedelta
+        from datetime import datetime, timedelta, timezone
         from core.logging_setup import redact
         seconds = retry_after if retry_after else self.default_minutes * 60
         until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
@@ -127,6 +66,7 @@ class QuotaCooldown:
         self._write(state)
 
     def reason(self) -> str | None:
+        from datetime import datetime, timezone
         quota = self._read().get("quota")
         if not quota or quota.get("model") != self.model:
             return None
@@ -163,6 +103,10 @@ class AgentBackend(ABC):
     def unavailable_reason(self) -> str | None:
         """Motivo para recusar trabalho antes de executar (ex.: quota em cooldown). None = pode executar."""
         return None
+
+
+# Registra Agent como subclasse virtual de AgentBackend
+AgentBackend.register(Agent)
 
 
 # ---------------------------------------------------------------- utilitários

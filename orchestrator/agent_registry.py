@@ -7,29 +7,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agents.base import AgentBackend, AgentHealth
-
-
-@dataclass(frozen=True)
-class SkillDef:
-    id: str
-    name: str
-    description: str
-    tags: tuple[str, ...] = ()
-    examples: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class AgentDefinition:
-    name: str
-    display_name: str
-    role: str
-    description: str
-    skills: tuple[SkillDef, ...]
-    provider: str
-
-    def skill_ids(self) -> set[str]:
-        return {s.id for s in self.skills}
-
+from core.agent import Agent, AgentDefinition, SkillDef
+from core.capabilities import CapabilityRegistry, ModelCapability
 
 SKILL_PLAN = SkillDef("plan_feature", "Planejar funcionalidade",
                       "Analisa o pedido e o contexto do projeto e devolve um plano JSON com subtarefas, arquivos, critérios, "
@@ -84,12 +63,24 @@ class AgentState:
 
 
 class AgentRegistry:
-    def __init__(self, backends: dict[str, AgentBackend], definitions: dict[str, AgentDefinition] | None = None,
-                 allow_fallback: bool = False, health_ttl: float = 30.0):
+    def __init__(
+        self,
+        backends: dict[str, AgentBackend],
+        definitions: dict[str, AgentDefinition] | None = None,
+        allow_fallback: bool = False,
+        health_ttl: float = 30.0,
+        capability_registry: CapabilityRegistry | None = None,
+    ):
         definitions = definitions or AGENT_DEFINITIONS
-        self.agents: dict[str, AgentState] = {n: AgentState(definitions[n], b) for n, b in backends.items()}
+        self.agents: dict[str, AgentState] = {}
+        for n, b in backends.items():
+            defn = definitions.get(n) or (b.definition if isinstance(b, Agent) else AgentDefinition(
+                name=n, display_name=n, role="Agent", description="", skills=(), provider=getattr(b, "kind", "unknown")
+            ))
+            self.agents[n] = AgentState(defn, b)
         self.allow_fallback = allow_fallback
         self.health_ttl = health_ttl
+        self.capability_registry = capability_registry
 
     def names(self) -> list[str]:
         return list(self.agents)
@@ -112,13 +103,30 @@ class AgentRegistry:
         reason = self.get(name).backend.unavailable_reason()
         return (reason is None), reason
 
-    def select(self, preferred: str, skill: str) -> tuple[str | None, str | None]:
+    def select(
+        self,
+        preferred: str,
+        skill: str,
+        required_capabilities: frozenset[ModelCapability] | set[ModelCapability] | None = None,
+    ) -> tuple[str | None, str | None]:
         """Retorna (agente, motivo_de_bloqueio). Sem fallback, não executa se o preferido estiver indisponível."""
         candidates = [preferred] + ([n for n in self.agents if n != preferred] if self.allow_fallback else [])
         reasons = []
         for name in candidates:
             if name not in self.agents or skill not in self.agents[name].definition.skill_ids():
                 continue
+            # Verificação de capacidades do modelo/provedor se exigidas
+            if required_capabilities:
+                backend = self.agents[name].backend
+                missing = []
+                for cap in required_capabilities:
+                    if hasattr(backend, "supports_capability") and not backend.supports_capability(cap):
+                        missing.append(cap.value if hasattr(cap, "value") else str(cap))
+                    elif self.capability_registry and not self.capability_registry.has_capability(backend.model, cap):
+                        missing.append(cap.value if hasattr(cap, "value") else str(cap))
+                if missing:
+                    reasons.append(f"{name}: faltam capacidades ({', '.join(missing)})")
+                    continue
             ok, reason = self.can_accept(name)
             if ok:
                 return name, None
@@ -129,7 +137,7 @@ class AgentRegistry:
         out = []
         for name, st in self.agents.items():
             ok, reason = self.can_accept(name)
-            out.append({
+            entry: dict[str, Any] = {
                 "name": name,
                 "display_name": st.definition.display_name,
                 "role": st.definition.role,
@@ -141,5 +149,8 @@ class AgentRegistry:
                 "health": st.health.to_dict() if st.health else None,
                 "a2a_card_reachable": st.card_reachable,
                 "a2a_card_error": st.card_error,
-            })
+            }
+            if isinstance(st.backend, Agent):
+                entry["required_capabilities"] = [c.value for c in st.backend.required_capabilities]
+            out.append(entry)
         return out

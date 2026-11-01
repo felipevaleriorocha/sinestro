@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import httpx
@@ -11,12 +11,15 @@ from a2a.server.tasks import DatabaseTaskStore
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from agents.base import AgentBackend
-from agents.gemini_adapter import GeminiAdapter
-from agents.opencode_adapter import OpenCodeAdapter
+from agents.gemini_adapter import GeminiAdapter, GeminiProvider
+from agents.opencode_adapter import OpenCodeAdapter, OpenCodeProvider
 from communication.a2a_client import A2AAgentClient
 from communication.a2a_server import agent_base_path
+from core.agent import Agent
+from core.capabilities import CapabilityRegistry, ModelCapability
 from core.config import Settings
 from core.domain import DomainProfile
+from core.providers import Provider
 from database.repository import Repository
 from domains.roblox import RobloxDomainProfile
 from mcp_bridge.server_registry import MCPServerRegistry
@@ -52,27 +55,47 @@ class Container:
     coordinator: Coordinator
     checks: ChecksRunner
     domain: DomainProfile
+    providers: dict[str, Provider] = field(default_factory=dict)
+    agents: dict[str, Agent] = field(default_factory=dict)
+    capability_registry: CapabilityRegistry | None = None
 
 
-def build_container(settings: Settings, backends: dict[str, AgentBackend] | None = None,
-                    http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
-                    checks: ChecksRunner | None = None,
-                    domain: DomainProfile | None = None) -> Container:
+def build_container(
+    settings: Settings,
+    backends: dict[str, AgentBackend] | None = None,
+    http_client_factory: Callable[[], httpx.AsyncClient] | None = None,
+    checks: ChecksRunner | None = None,
+    domain: DomainProfile | None = None,
+) -> Container:
     repo = Repository(settings.db_path)
     mock_mode = False
+    capability_registry = CapabilityRegistry()
+    providers: dict[str, Provider] = {}
+
     if backends is None:
         if os.getenv("ORCH_MOCK_AGENTS", "").lower() in {"1", "true", "yes", "sim"}:
             from agents.mock_adapters import build_mock_backends
-            backends = build_mock_backends(delay=1.0)
+            mock_backends = build_mock_backends(delay=1.0)
+            backends = mock_backends
+            providers = {n: b for n, b in mock_backends.items()}
             mock_mode = True
             log.warning("ORCH_MOCK_AGENTS ativo: agentes SIMULADOS. Nada aqui é integração real.")
         else:
+            gem_prov = GeminiProvider(settings, session_store=repo)
+            open_prov = OpenCodeProvider(settings, session_store=repo)
+            providers = {"gemini": gem_prov, "deepseek": open_prov}
             backends = {
                 "gemini": GeminiAdapter(settings, session_store=repo),
                 "deepseek": OpenCodeAdapter(settings, session_store=repo),
             }
     else:
         mock_mode = any(getattr(b, "kind", "") == "mock" for b in backends.values())
+        for n, b in backends.items():
+            if isinstance(b, Provider):
+                providers[n] = b
+
+    for p in providers.values():
+        capability_registry.register_provider(p)
 
     domain = domain or RobloxDomainProfile(settings)
 
@@ -83,25 +106,98 @@ def build_container(settings: Settings, backends: dict[str, AgentBackend] | None
     task_store = DatabaseTaskStore(engine)  # tabela padrão do SDK ("tasks") dentro de orchestrator_a2a.db
     decisions = DecisionStore(repo)
     context_data = domain.load_context_sources()
-    context = ContextManager(settings.project_root, settings.context_sources_file, decisions,
-                             settings.context_max_chars, settings.context_file_max_chars,
-                             sources_config=context_data)
+    context = ContextManager(
+        settings.project_root,
+        settings.context_sources_file,
+        decisions,
+        settings.context_max_chars,
+        settings.context_file_max_chars,
+        sources_config=context_data,
+    )
     locks = FileLockManager(repo, settings.project_root, settings.file_lock_ttl_seconds)
     git = GitInspector(settings.project_root)
     mcp = MCPServerRegistry(settings.mcp_config_file)
     tasks = TaskManager(repo)
     agent_defs = domain.get_agent_definitions() or AGENT_DEFINITIONS
-    registry = AgentRegistry(backends, agent_defs, allow_fallback=settings.allow_agent_fallback)
+
+    agents: dict[str, Agent] = {}
+    for name, defn in agent_defs.items():
+        prov = providers.get(name)
+        if prov:
+            caps = (
+                frozenset({ModelCapability.TEXT, ModelCapability.CODE, ModelCapability.REASONING})
+                if name == "gemini"
+                else frozenset({ModelCapability.TEXT, ModelCapability.CODE})
+            )
+            agents[name] = Agent(
+                name=defn.name,
+                display_name=defn.display_name,
+                role=defn.role,
+                description=defn.description,
+                skills=defn.skills,
+                provider=prov,
+                model=prov.default_model,
+                required_capabilities=caps,
+            )
+
+    registry = AgentRegistry(
+        backends,
+        agent_defs,
+        allow_fallback=settings.allow_agent_fallback,
+        capability_registry=capability_registry,
+    )
     agent_urls = {name: f"{settings.public_url}{agent_base_path(name)}" for name in backends}
-    a2a = A2AAgentClient(repo, agent_urls, http_client_factory=http_client_factory,
-                         poll_interval=settings.a2a_poll_interval, task_timeout=settings.a2a_task_timeout)
+    a2a = A2AAgentClient(
+        repo,
+        agent_urls,
+        http_client_factory=http_client_factory,
+        poll_interval=settings.a2a_poll_interval,
+        task_timeout=settings.a2a_task_timeout,
+    )
     checks_data = domain.load_checks_config()
     allowed_tools = frozenset(checks_data["allowed_tools"]) if "allowed_tools" in checks_data else None
-    checks = checks or ChecksRunner(settings.project_root, settings.checks_file,
-                                    config=checks_data, allowed_tools=allowed_tools)
+    checks = checks or ChecksRunner(
+        settings.project_root,
+        settings.checks_file,
+        config=checks_data,
+        allowed_tools=allowed_tools,
+    )
     rules_data = domain.load_assignment_rules()
     rules = AssignmentRules.from_dict(rules_data) if rules_data else AssignmentRules.load(settings.assignment_rules_file)
-    coordinator = Coordinator(settings, repo, tasks, registry, a2a, context, decisions, locks, git, mcp,
-                              checks=checks, rules=rules, domain=domain)
-    return Container(settings, repo, backends, mock_mode, engine, task_store, tasks, registry, a2a, context, decisions,
-                     locks, git, mcp, coordinator, checks, domain)
+    coordinator = Coordinator(
+        settings,
+        repo,
+        tasks,
+        registry,
+        a2a,
+        context,
+        decisions,
+        locks,
+        git,
+        mcp,
+        checks=checks,
+        rules=rules,
+        domain=domain,
+    )
+    return Container(
+        settings,
+        repo,
+        backends,
+        mock_mode,
+        engine,
+        task_store,
+        tasks,
+        registry,
+        a2a,
+        context,
+        decisions,
+        locks,
+        git,
+        mcp,
+        coordinator,
+        checks,
+        domain,
+        providers=providers,
+        agents=agents,
+        capability_registry=capability_registry,
+    )

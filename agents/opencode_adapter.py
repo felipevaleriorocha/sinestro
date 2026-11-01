@@ -22,8 +22,10 @@ from agents.base import (
     AgentTimeoutError, ContractNotVerifiedError, ModelUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
 from agents.opencode_contract import OpenCodeContract
+from core.capabilities import ModelCapability, ModelSpec
 from core.config import Settings
 from core.logging_setup import redact
+from core.providers import Provider
 
 log = logging.getLogger("agents.opencode")
 
@@ -92,7 +94,7 @@ def agent_names(payload: Any) -> list[str]:
     names = []
     for a in _as_list(payload):
         if isinstance(a, dict):
-            n = a.get("id") or a.get("name")  # a sess?o usa o id (ex.: "plan"), n?o o nome de exibi??o
+            n = a.get("id") or a.get("name")  # a sessão usa o id (ex.: "plan"), não o nome de exibição
             if n:
                 names.append(str(n))
         elif isinstance(a, str):
@@ -145,10 +147,14 @@ def extract_assistant_reply(payload: Any, exclude_ids: set[str] | None = None) -
     return (with_text or candidates)[0]
 
 
-# ---------------------------------------------------------------- adaptador
-class OpenCodeAdapter(AgentBackend):
+# ---------------------------------------------------------------- provedor OpenCode
+class OpenCodeProvider(Provider):
+    """Provedor para modelos servidos via OpenCode HTTP API (ex.: DeepSeek)."""
+
+    id = "opencode"
     name = "deepseek"
     kind = "opencode-http"
+    description = "Modelos servidos via OpenCode HTTP API"
 
     def __init__(self, settings: Settings, session_store: Any | None = None, transport: httpx.BaseTransport | None = None):
         self.settings = settings
@@ -174,8 +180,28 @@ class OpenCodeAdapter(AgentBackend):
         self._active_sessions: dict[str, str] = {}
 
     @property
-    def model(self) -> str:
+    def default_model(self) -> str:
         return self.settings.opencode_model
+
+    @property
+    def model(self) -> str:
+        return self.default_model
+
+    def get_models(self) -> list[ModelSpec]:
+        return [
+            ModelSpec(
+                id=self.default_model,
+                name="DeepSeek V4.1 Flash Free",
+                provider_id=self.id,
+                capabilities=frozenset({
+                    ModelCapability.TEXT,
+                    ModelCapability.CODE,
+                    ModelCapability.READ_ONLY,
+                }),
+                context_window=64_000,
+                description="DeepSeek V4.1 Flash Free servido via OpenCode HTTP.",
+            )
+        ]
 
     def model_ref(self) -> tuple[str, str]:
         m = self.settings.opencode_model
@@ -286,7 +312,7 @@ class OpenCodeAdapter(AgentBackend):
     def clear_quota(self) -> None:
         self._quota.clear()
 
-    def unavailable_reason(self) -> str | None:
+    def unavailable_reason(self, model: str | None = None) -> str | None:
         return self._quota.reason()
 
     # ---------------------------------------------------------------- execução
@@ -339,7 +365,6 @@ class OpenCodeAdapter(AgentBackend):
         return str(session_id)
 
     def ensure_session(self, context_key: str, title: str, model_status: dict, agent: str = "") -> str:
-        # A sessão fica presa ao agente com que foi criada; por isso a chave inclui o agente (Build x Plan).
         key = f"{context_key}|{agent}" if agent else context_key
         if self._sessions:
             existing = self._sessions.get_session(self.name, key)
@@ -350,8 +375,16 @@ class OpenCodeAdapter(AgentBackend):
             self._sessions.save_session(self.name, key, session_id, self.model)
         return session_id
 
-    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
-        options = options or {}
+    def execute(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        context_key: str = "",
+        run_id: str = "",
+        options: dict[str, Any] | None = None,
+    ) -> AgentResult:
+        options = dict(options or {})
         started = time.monotonic()
         try:
             status = self._preflight()
@@ -374,7 +407,7 @@ class OpenCodeAdapter(AgentBackend):
                 self._cancelled.discard(run_id)
         failure = next((m for m in _as_list(payload) if isinstance(m, dict) and m.get("outcome") == "failed"
                         and (m.get("id") or "") not in before), None)
-        if failure:  # ex.: {"type": "idle", "outcome": "failed", "error": {"message": "Agent not found"}}
+        if failure:
             err = failure.get("error") or {}
             msg = redact(err.get("message") if isinstance(err, dict) else str(err))
             if looks_like_quota_error(msg):
@@ -455,3 +488,12 @@ class OpenCodeAdapter(AgentBackend):
 
     def close(self) -> None:
         self._client.close()
+
+
+class OpenCodeAdapter(OpenCodeProvider, AgentBackend):
+    """Adaptador de retrocompatibilidade para o OpenCode mantendo interface de AgentBackend."""
+
+    name = "deepseek"
+
+    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+        return self.execute(prompt, model=self.model, context_key=context_key, run_id=run_id, options=options)

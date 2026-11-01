@@ -24,8 +24,10 @@ from agents.base import (
     READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth, AgentResponseError, AgentResult,
     AgentTimeoutError, AgentUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
+from core.capabilities import ModelCapability, ModelSpec
 from core.config import Settings
 from core.logging_setup import redact
+from core.providers import Provider
 from core.safe_exec import IS_WINDOWS, resolve_binary, run_process
 
 log = logging.getLogger("agents.gemini")
@@ -77,8 +79,8 @@ def result_from_payload(payload: dict[str, Any], model: str) -> AgentResult:
         denied = payload.get("denied_actions") or []
         if denied:
             names = ", ".join(str(d.get("action") or d) if isinstance(d, dict) else str(d) for d in denied)
-            raise AgentResponseError(f"Antigravity terminou sem resposta: permiss?o negada pelo agy ({names}). "
-                                     "O agente tentou uma a??o n?o permitida em modo n?o interativo.")
+            raise AgentResponseError(f"Antigravity terminou sem resposta: permissão negada pelo agy ({names}). "
+                                     "O agente tentou uma ação não permitida em modo não interativo.")
         raise AgentResponseError("Antigravity retornou status SUCCESS com resposta vazia.")
     duration = payload.get("duration_seconds")
     return AgentResult(
@@ -92,9 +94,13 @@ def result_from_payload(payload: dict[str, Any], model: str) -> AgentResult:
     )
 
 
-class GeminiAdapter(AgentBackend):
+class GeminiProvider(Provider):
+    """Provedor para o Google Gemini via Antigravity CLI."""
+
+    id = "gemini_cli"
     name = "gemini"
     kind = "antigravity-cli"
+    description = "Google Gemini via Antigravity CLI"
 
     def __init__(
         self,
@@ -113,11 +119,32 @@ class GeminiAdapter(AgentBackend):
         self._lock = threading.Lock()
         self._quota = QuotaCooldown(settings.runtime_dir / "gemini_state.json", settings.agy_model, settings.agy_quota_cooldown_minutes)
 
-    # ---------------------------------------------------------------- binário
     @property
-    def model(self) -> str:
+    def default_model(self) -> str:
         return self.settings.agy_model
 
+    @property
+    def model(self) -> str:
+        return self.default_model
+
+    def get_models(self) -> list[ModelSpec]:
+        return [
+            ModelSpec(
+                id=self.default_model,
+                name="Gemini 4 Argon High",
+                provider_id=self.id,
+                capabilities=frozenset({
+                    ModelCapability.TEXT,
+                    ModelCapability.CODE,
+                    ModelCapability.REASONING,
+                    ModelCapability.READ_ONLY,
+                }),
+                context_window=1_000_000,
+                description="Google Gemini Argon High com raciocínio e suporte a contexto longo.",
+            )
+        ]
+
+    # ---------------------------------------------------------------- binário
     def command_prefix(self) -> list[str]:
         if self._command_prefix:
             return list(self._command_prefix)
@@ -218,17 +245,28 @@ class GeminiAdapter(AgentBackend):
         )
         return short, file
 
-    # ---------------------------------------------------------------- execução
     # ---------------------------------------------------------------- quota
-    def unavailable_reason(self) -> str | None:
+    def unavailable_reason(self, model: str | None = None) -> str | None:
         return self._quota.reason()
 
     def clear_quota(self) -> None:
         self._quota.clear()
 
-    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+    # ---------------------------------------------------------------- execução
+    def execute(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        context_key: str = "",
+        run_id: str = "",
+        options: dict[str, Any] | None = None,
+    ) -> AgentResult:
+        opts = dict(options or {})
+        if model:
+            opts["model"] = model
         try:
-            return self._run(prompt, context_key=context_key, run_id=run_id, options=options)
+            return self._run(prompt, context_key=context_key, run_id=run_id, options=opts)
         except QuotaExceededError as exc:
             self._quota.mark(str(exc), exc.retry_after_seconds)
             raise
@@ -324,3 +362,12 @@ class GeminiAdapter(AgentBackend):
         ok = checks["help_ok"] and checks["project_root_exists"]
         detail = "CLI encontrado (verificação sem chamada ao modelo)." if ok else "Verifique PROJECT_ROOT e o AGY_BIN."
         return AgentHealth(self.name, ok, "ok" if ok else "degraded", detail, self.model, checks)
+
+
+class GeminiAdapter(GeminiProvider, AgentBackend):
+    """Adaptador de retrocompatibilidade para o Gemini mantendo interface de AgentBackend."""
+
+    name = "gemini"
+
+    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+        return self.execute(prompt, model=self.model, context_key=context_key, run_id=run_id, options=options)

@@ -8,15 +8,22 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Callable
+from typing import Any, Callable
 
 from agents.base import AgentBackend, AgentCancelledError, AgentHealth, AgentResult, QuotaExceededError
+from core.capabilities import ModelCapability, ModelSpec
+from core.providers import Provider
 
 Responder = Callable[[str, str, dict], str]
 
 
-class ScriptedBackend(AgentBackend):
+class MockProvider(Provider):
+    """Provedor simulado para testes rápidos e demonstração sem consumo de tokens reais."""
+
+    id = "mock"
+    name = "Mock Provider"
     kind = "mock"
+    description = "Provedor simulado para testes unitários e de integração"
 
     def __init__(self, name: str, model: str, responder: Responder | None = None, delay: float = 0.0):
         self.name = name
@@ -30,17 +37,52 @@ class ScriptedBackend(AgentBackend):
         self._cancel: dict[str, threading.Event] = {}
 
     @property
+    def default_model(self) -> str:
+        return self._model
+
+    @property
     def model(self) -> str:
         return self._model
+
+    def get_models(self) -> list[ModelSpec]:
+        return [
+            ModelSpec(
+                id=self._model,
+                name=f"{self.name} Mock Model",
+                provider_id=self.id,
+                capabilities=frozenset({
+                    ModelCapability.TEXT,
+                    ModelCapability.CODE,
+                    ModelCapability.REASONING,
+                    ModelCapability.READ_ONLY,
+                    ModelCapability.VISION,
+                }),
+                context_window=128_000,
+                description="Modelo simulado para testes.",
+            )
+        ]
 
     def skill_calls(self, skill: str) -> list[dict]:
         return [c for c in self.calls if c["skill"] == skill]
 
-    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+    def execute(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        context_key: str = "",
+        run_id: str = "",
+        options: dict[str, Any] | None = None,
+    ) -> AgentResult:
         options = options or {}
         skill = options.get("skill", "")
-        self.calls.append({"skill": skill, "context_key": context_key, "run_id": run_id, "prompt": prompt,
-                           "read_only": options.get("read_only")})
+        self.calls.append({
+            "skill": skill,
+            "context_key": context_key,
+            "run_id": run_id,
+            "prompt": prompt,
+            "read_only": options.get("read_only"),
+        })
         if self.quota_reason:
             raise QuotaExceededError(self.quota_reason)
         if self.raise_on_run:
@@ -53,14 +95,19 @@ class ScriptedBackend(AgentBackend):
             if ev.wait(0.02):
                 raise AgentCancelledError("cancelado (mock)")
         text = self.responder(skill, prompt, {"count": len(self.skill_calls(skill))})
-        return AgentResult(text=text, model=self.model, session_id=f"mock-{context_key[:8]}", usage={"input_tokens": 1, "output_tokens": 1},
-                           duration_seconds=round(self.delay, 3))
+        return AgentResult(
+            text=text,
+            model=model or self.model,
+            session_id=f"mock-{context_key[:8]}",
+            usage={"input_tokens": 1, "output_tokens": 1},
+            duration_seconds=round(self.delay, 3),
+        )
 
     def cancel(self, run_id: str) -> bool:
         self._cancel.setdefault(run_id, threading.Event()).set()
         return True
 
-    def unavailable_reason(self) -> str | None:
+    def unavailable_reason(self, model: str | None = None) -> str | None:
         return self.quota_reason
 
     def clear_quota(self) -> None:
@@ -70,6 +117,13 @@ class ScriptedBackend(AgentBackend):
         if self.quota_reason:
             return AgentHealth(self.name, False, "quota_exceeded", self.quota_reason, self.model, {"mock": True})
         return AgentHealth(self.name, True, "ok", "MOCK — não é integração real.", self.model, {"mock": True})
+
+
+class ScriptedBackend(MockProvider, AgentBackend):
+    """Adaptador de backend com script de respostas programadas."""
+
+    def run(self, prompt: str, *, context_key: str, run_id: str, options: dict | None = None) -> AgentResult:
+        return self.execute(prompt, model=self.model, context_key=context_key, run_id=run_id, options=options)
 
 
 DEFAULT_TASK = {"id": "T1", "assigned_to": "deepseek", "category": "boilerplate", "assignment_reason": "código mecânico (mock)",
