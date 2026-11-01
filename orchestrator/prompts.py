@@ -234,12 +234,43 @@ CONTEXTO COMPARTILHADO:
 """
 
 
-def final_review_prompt(agent: str, goal: str, subtasks: list[dict[str, Any]], context_text: str) -> str:
-    return f"""Você é {AGENT_LABEL.get(agent, agent)}. Faça a revisão final do trabalho abaixo no workspace real. {READ_ONLY}
+def final_review_prompt(agent: str, goal: str, subtasks: list[dict[str, Any]], context_text: str,
+                        self_authored: list[str] | None = None, watched_files: list[str] | None = None,
+                        validation_errors: list[str] | None = None, previous_review: dict | None = None) -> str:
+    own = ""
+    if self_authored:
+        own = f"""
+ATENÇÃO: você mesmo implementou {_dump(self_authored)}. Seus achados sobre elas contam e bloqueiam, mas sua aprovação NÃO
+conta como cobertura dessas subtarefas (elas já foram revisadas pelo outro agente). Não as aprove por conta própria.
+"""
+    reform = ""
+    if validation_errors:
+        reform = f"""
+REFORMULAÇÃO OBRIGATÓRIA (única): seus achados anteriores foram DESCARTADOS por evidência inválida:
+{_dump(validation_errors)}
+Revisão anterior: {_dump(previous_review or {})}
+Refaça citando arquivo, linha e trecho LITERAL curto (até ±5 linhas). Se não houver problema comprovável, use "approved".
+"""
+    return f"""Você é {AGENT_LABEL.get(agent, agent)} e vai fazer a REVISÃO FINAL DE INTEGRAÇÃO do trabalho abaixo. {READ_ONLY}
 {COMMON_RULES}
+Cada subtarefa JÁ foi revisada individualmente pelo outro agente. NÃO re-revise cada subtarefa isoladamente.
+FOQUE NA INTEGRAÇÃO ENTRE AS SUBTAREFAS:
+1. interfaces: assinaturas/retornos usados de um módulo para outro batem?
+2. remotes: RemoteEvents/RemoteFunctions criados e consumidos com o mesmo nome e os mesmos argumentos, validação no servidor?
+3. requires: caminhos de require existem e apontam para o módulo certo?
+4. estado compartilhado: dados compartilhados entre módulos (tabelas, DataStore, atributos) são consistentes, sem duplicação?
+5. nomes: nomes de instâncias, chaves e eventos coerentes entre as partes?
+{own}
+EVIDÊNCIA OBRIGATÓRIA: todo achado precisa de "file", "line" e "snippet" (trecho LITERAL curto, ±5 linhas). Sem evidência = descartado.
 OBJETIVO: {goal}
-SUBTAREFAS E RESULTADOS: {_dump(subtasks)}
-Responda SOMENTE JSON: {{"verdict": "approved" | "changes_requested" | "rejected", "summary": "...", "findings": [], "requested_changes": ["..."]}}
+SUBTAREFAS: {_dump(subtasks)}
+ARQUIVOS DO TRABALHO: {_dump(watched_files or [])}
+{reform}
+Responda SOMENTE JSON:
+{{"verdict": "approved" | "changes_requested" | "rejected", "summary": "...",
+  "findings": [{{"file": "src/...", "line": 1, "snippet": "trecho literal", "issue": "problema de integração", "severity": "blocker" | "major" | "minor"}}],
+  "requested_changes": ["..."], "rejection_reason": ""}}
+"changes_requested" e "rejected" exigem pelo menos um achado com evidência.
 
 CONTEXTO COMPARTILHADO:
 {context_text}

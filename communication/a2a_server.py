@@ -91,7 +91,9 @@ class RoleAgentExecutor(AgentExecutor):
                                          p.get("git_changes", []), p.get("checks"), p.get("mcp_status"), p.get("validate_plan"),
                                          p.get("validation_errors"), p.get("previous_review"))
         if skill == "final_review":
-            return prompts.final_review_prompt(me, p["goal"], p.get("subtasks", []), p.get("context_text", ""))
+            return prompts.final_review_prompt(me, p["goal"], p.get("subtasks", []), p.get("context_text", ""),
+                                               p.get("self_authored"), p.get("watched_files"), p.get("validation_errors"),
+                                               p.get("previous_review"))
         raise AgentResponseError(f"Skill não suportada: {skill}")
 
     @staticmethod
