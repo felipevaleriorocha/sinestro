@@ -38,7 +38,7 @@ class DecisionProposal(_Lenient):
 
 CATEGORIES = (
     "architecture", "security", "server", "persistence", "events", "ui",
-    "boilerplate", "mechanical", "config", "other",
+    "boilerplate", "mechanical", "config", "asset", "assets", "docs", "other",
 )
 
 
@@ -47,6 +47,7 @@ class PlannedTask(_Lenient):
     agent: AgentName = "deepseek"          # compatível com planos da v0.3; espelha assigned_to
     assigned_to: AgentName = "deepseek"    # PROPOSTA do planejador (turno 1); a decisão final é AssignmentDecision
     category: str = "other"
+    skip_review: bool = False
     assignment_reason: str = ""
     title: str
     objective: str = ""

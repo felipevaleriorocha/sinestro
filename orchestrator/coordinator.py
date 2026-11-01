@@ -28,6 +28,13 @@ from communication.messaging import DelegationResult
 from core.config import Settings
 from core.domain import DomainProfile
 from core.logging_setup import redact
+from core.workflow import (
+    WorkflowContext,
+    WorkflowDAG,
+    WorkflowEngine,
+    WorkflowStage,
+    WorkflowStageStatus,
+)
 from database.repository import Repository, utc_now
 from mcp_bridge.server_registry import MCPServerRegistry
 from memory.context_manager import ContextManager
@@ -79,6 +86,7 @@ class Coordinator:
         self.rules = rules or AssignmentRules.load(settings.assignment_rules_file)
         self._running: dict[str, asyncio.Task] = {}
         self._workflow_gate = asyncio.Semaphore(1)  # workflows serializados (atribuição de mudanças via Git fica confiável)
+        self.workflow_engine = WorkflowEngine()
 
     # ================================================================ API pública
     def start(self, wf_id: str, resume: bool = False) -> None:
@@ -136,37 +144,104 @@ class Coordinator:
             self.tasks.set_status(wf_id, WF.FAILED, error="PROJECT_ROOT não existe. Configure o .env.")
             return WF.FAILED
 
-        bundle = await asyncio.to_thread(self.context.for_workflow, wf_id)
-        self.repo.update_workflow(wf_id, context_hash=bundle.hash, context_sources_json=bundle.to_dict())
-        if bundle.missing:
-            self.tasks.event(wf_id, "orchestrator", "context_missing", f"Documentos não encontrados: {', '.join(bundle.missing)}", "warning")
-        mcp_status = await asyncio.to_thread(self.mcp.status)
+        # Seleciona ou constrói o DAG dinâmico de etapas
+        if resume and self._final_review_only(wf):
+            dag = WorkflowDAG.resume_final_review_dag()
+        elif mode == "plan_only":
+            dag = WorkflowDAG.plan_only_dag()
+        elif mode == "no_review":
+            dag = WorkflowDAG.no_review_dag()
+        else:
+            dag = WorkflowDAG.standard_dag()
+
+        ctx = WorkflowContext(wf_id=wf_id, goal=goal, mode=mode, resume=resume)
+
+        handlers = {
+            "context": self._step_context,
+            "plan": self._step_plan,
+            "negotiate": self._step_negotiate,
+            "execute_subtasks": self._step_execute_subtasks,
+            "final_review": self._step_final_review,
+            "conclude": self._step_conclude,
+        }
 
         try:
-            if resume and self._final_review_only(wf):
-                return await self._resume_final_review_only(wf_id, goal, wf)
-            if resume and wf.get("plan") and self.tasks.subtasks(wf_id):
-                plan = wf["plan"]
-                reset = self.tasks.reset_for_resume(wf_id)
-                self.tasks.event(wf_id, "orchestrator", "resume", f"Retomando com plano existente; {reset} subtarefas reabertas.")
-            else:
-                plan = await self._plan(wf_id, goal, bundle.text, mcp_status)
-                if mode == "plan_only":
-                    self.tasks.set_status(wf_id, WF.PLANNED, result_json={"goal": goal, "plan": plan})
-                    return WF.PLANNED
-
-            await self._negotiate_assignments(wf_id, goal, plan)
-            self.tasks.set_status(wf_id, WF.DELEGATING)
-            paused = await self._execute_subtasks(wf_id, goal, mcp_status)
-
-            subs = self.tasks.subtasks(wf_id)
-            final_review = await self._final_review_stage(wf_id, goal, subs)
-            return self._conclude(wf_id, goal, plan, subs, paused, final_review)
+            return await self.workflow_engine.execute(dag, ctx, handlers)
         except WorkflowAbort as exc:
             subs = self.tasks.subtasks(wf_id)
             self.tasks.set_status(wf_id, exc.status, error=str(exc), result_json=self._result(wf_id, goal, wf.get("plan"), subs, None, None))
             self.tasks.event(wf_id, "orchestrator", "aborted", str(exc), "error" if exc.status == WF.FAILED else "warning")
             return exc.status
+
+    # ---------------------------------------------------------------- etapas do DAG de workflow
+    async def _step_context(self, ctx: WorkflowContext) -> Any:
+        bundle = await asyncio.to_thread(self.context.for_workflow, ctx.wf_id)
+        self.repo.update_workflow(ctx.wf_id, context_hash=bundle.hash, context_sources_json=bundle.to_dict())
+        if bundle.missing:
+            self.tasks.event(ctx.wf_id, "orchestrator", "context_missing", f"Documentos não encontrados: {', '.join(bundle.missing)}", "warning")
+        ctx.bundle = bundle
+        ctx.mcp_status = await asyncio.to_thread(self.mcp.status)
+        return bundle
+
+    async def _step_plan(self, ctx: WorkflowContext) -> Any:
+        wf = self.repo.get_workflow(ctx.wf_id) or {}
+        if ctx.resume and wf.get("plan") and self.tasks.subtasks(ctx.wf_id):
+            plan = wf["plan"]
+            reset = self.tasks.reset_for_resume(ctx.wf_id)
+            self.tasks.event(ctx.wf_id, "orchestrator", "resume", f"Retomando com plano existente; {reset} subtarefas reabertas.")
+            ctx.plan = plan
+            return plan
+
+        bundle_text = ctx.bundle.text if ctx.bundle else ""
+        plan = await self._plan(ctx.wf_id, ctx.goal, bundle_text, ctx.mcp_status)
+        ctx.plan = plan
+        if ctx.mode == "plan_only":
+            self.tasks.set_status(ctx.wf_id, WF.PLANNED, result_json={"goal": ctx.goal, "plan": plan})
+        return plan
+
+    async def _step_negotiate(self, ctx: WorkflowContext) -> Any:
+        if ctx.mode == "plan_only":
+            return None
+        await self._negotiate_assignments(ctx.wf_id, ctx.goal, ctx.plan or {})
+        self.tasks.set_status(ctx.wf_id, WF.DELEGATING)
+        return True
+
+    async def _step_execute_subtasks(self, ctx: WorkflowContext) -> Any:
+        if ctx.mode == "plan_only":
+            return False
+        paused = await self._execute_subtasks(ctx.wf_id, ctx.goal, ctx.mcp_status)
+        ctx.paused = paused
+        ctx.subtasks = self.tasks.subtasks(ctx.wf_id)
+        return paused
+
+    async def _step_final_review(self, ctx: WorkflowContext) -> Any:
+        wf = self.repo.get_workflow(ctx.wf_id) or {}
+        if ctx.resume and self._final_review_only(wf):
+            prev = wf.get("final_review") or {}
+            self.repo.update_workflow(ctx.wf_id, cancel_requested=0)
+            self.tasks.event(ctx.wf_id, "orchestrator", "resume_final_review_only",
+                             f"Retomando só a revisão final (tentativa {int(prev.get('attempt') or 0) + 1}; estado anterior "
+                             f"{wf.get('final_review_state')}; snapshot anterior {prev.get('snapshot_hash')}).")
+            self.tasks.set_status(ctx.wf_id, WF.REVIEWING, phase="final_review")
+            subs = self.tasks.subtasks(ctx.wf_id)
+            ctx.subtasks = subs
+            ctx.plan = wf.get("plan")
+            final_review = await self._final_review_stage(ctx.wf_id, ctx.goal, subs)
+            ctx.final_review = final_review
+            return final_review
+
+        subs = ctx.subtasks or self.tasks.subtasks(ctx.wf_id)
+        ctx.subtasks = subs
+        final_review = await self._final_review_stage(ctx.wf_id, ctx.goal, subs)
+        ctx.final_review = final_review
+        return final_review
+
+    async def _step_conclude(self, ctx: WorkflowContext) -> str:
+        if ctx.mode == "plan_only":
+            return WF.PLANNED
+        subs = ctx.subtasks or self.tasks.subtasks(ctx.wf_id)
+        final_review = ctx.final_review or {"state": FR.NOT_REACHED}
+        return self._conclude(ctx.wf_id, ctx.goal, ctx.plan, subs, ctx.paused, final_review)
 
     def _conclude(self, wf_id: str, goal: str, plan: Any, subs: list[dict], paused: bool, final_review: dict) -> str:
         status = final_status(subs, self.tasks.cancel_requested(wf_id), paused, final_review["state"])
@@ -491,7 +566,8 @@ class Coordinator:
         last_review: dict | None = sub.get("review")
         last_check_sig: str | None = None
         last_impl_task: str | None = sub.get("last_a2a_task_id")
-        ctx = {"wf_id": wf_id, "sid": sid, "implementer": implementer, "reviewer": reviewer, "counters": counters}
+        wf_mode = (self.repo.get_workflow(wf_id) or {}).get("mode", "full")
+        ctx = {"wf_id": wf_id, "sid": sid, "implementer": implementer, "reviewer": reviewer, "counters": counters, "mode": wf_mode}
 
         while True:
             if not review_only:
@@ -555,7 +631,20 @@ class Coordinator:
                     continue
             review_only = False
 
-            # ---------------- 5. revisão cruzada (somente leitura)
+            # ---------------- 5. revisão cruzada (somente leitura) ou salto dinâmico
+            skip_subtask_review = (
+                sub.get("skip_review")
+                or (spec.get("skip_review") if isinstance(spec, dict) else False)
+                or (spec.get("category") in {"asset", "assets", "asset_generation", "docs", "documentation"} if isinstance(spec, dict) else False)
+                or (ctx.get("mode") == "no_review")
+            )
+            if skip_subtask_review:
+                self.tasks.event(wf_id, "orchestrator", "review_skipped_by_policy",
+                                 f"Revisão cruzada dispensada para a subtarefa {sid} (tipo simples/asset).", "info", sid)
+                self.decisions.accept_for_subtask(sid)
+                self.repo.update_subtask(sid, status=ST.APPROVED, error=None)
+                return
+
             ok, reason = self.registry.can_accept(reviewer)
             if not ok:
                 self.repo.update_subtask(sid, status=ST.AWAITING_REVIEW,

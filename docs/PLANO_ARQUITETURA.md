@@ -40,14 +40,19 @@ O sistema será capaz de receber uma solicitação, identificar o domínio (Robl
 
 ---
 
+## Fase 3: Motor de Workflow Dinâmico (✅ CONCLUÍDA)
+- Criação de `WorkflowDAG`, `WorkflowStage`, `WorkflowContext` e `WorkflowEngine` em `core/workflow.py`.
+- Separação estrita entre DAG de Tarefas (subtarefas e arquivos) e DAG de Workflow (etapas de ciclo de vida).
+- Validação estrutural de DAG (detecção de ciclos e dependências ausentes) e cálculo de ondas de execução concorrentes.
+- Coordinator refatorado para executar etapas via DAG dinâmico (`standard_dag`, `plan_only_dag`, `no_review_dag`, `resume_final_review_dag`).
+- Suporte a salto dinâmico de revisão cruzada para tarefas simples/assets (`skip_review` / `category='asset'`), economizando tokens e tempo.
+- 176 testes aprovados (0 regressões).
+
+---
+
 ## Fases Futuras
 
-### Fase 3: Motor de Workflow Dinâmico (Próxima)
-- Refatorar o `Coordinator` para interpretar um DAG de etapas genéricas, abandonando o fluxo hardcoded (Planeamento -> Atribuição -> Implementação -> Revisão).
-- Permitir fluxos que saltem a revisão (ex: tarefas de geração de assets simples).
-- Permitir fluxos paralelos e etapas customizáveis por tarefa.
-
-### Fase 4: Roteamento Inteligente e Workspace Unificado
+### Fase 4: Roteamento Inteligente e Workspace Unificado (Próxima)
 - Implementar banco vetorial local (SQLite VSS / ChromaDB) para o Context Manager (RAG).
 - Orquestrador seleciona agentes automaticamente pelo melhor rácio custo/capacidade.
 - Renovar o painel (`dashboard/index.html`) para suportar múltiplos projetos, acompanhamento unificado e relatórios de custo multiplataforma.
