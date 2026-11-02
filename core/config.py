@@ -141,6 +141,9 @@ class Settings:
     context_max_chars: int = 40000
     context_file_max_chars: int = 12000
     context_sources_file: Path = BASE_DIR / "config" / "context_sources.json"
+    # PROJECT_ROOT é opcional: sem ele o projeto é escolhido (ou criado) pelo painel.
+    project_configured: bool = True
+    default_projects_dir: Path = Path.home() / "Documents" / "Sinestro"
     mcp_config_file: Path = BASE_DIR / "config" / "mcp_servers.json"
     vector_store_file: Path = BASE_DIR / "runtime" / "vector_store.db"
 
@@ -150,8 +153,10 @@ class Settings:
     def public_summary(self) -> dict:
         """Resumo seguro (sem segredos) para /health e diagnósticos."""
         return {
-            "project_root": str(self.project_root),
-            "project_root_exists": self.project_root.is_dir(),
+            "project_root": str(self.project_root) if self.project_configured else "",
+            "project_root_configured": self.project_configured,
+            "project_root_exists": self.project_configured and self.project_root.is_dir(),
+            "default_projects_dir": str(self.default_projects_dir),
             "public_url": self.public_url,
             "db_path": str(self.db_path),
             "opencode_url": self.opencode_url,
@@ -256,6 +261,8 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         context_sources_file=_path(g("CONTEXT_SOURCES_FILE"), BASE_DIR / "config" / "context_sources.json"),
         mcp_config_file=_path(g("MCP_CONFIG_FILE"), BASE_DIR / "config" / "mcp_servers.json"),
         vector_store_file=_path(g("VECTOR_STORE_FILE"), BASE_DIR / "runtime" / "vector_store.db"),
+        project_configured=bool(project_raw),
+        default_projects_dir=_path(g("DEFAULT_PROJECTS_DIR"), Path.home() / "Documents" / "Sinestro"),
     )
 
 

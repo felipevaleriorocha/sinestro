@@ -105,6 +105,9 @@ class Coordinator:
         self.repo.touch_workflow(wf_id)
         self._running[wf_id] = asyncio.create_task(self._run_guarded(wf_id, resume), name=f"wf-{wf_id}")
 
+    def any_running(self) -> bool:
+        return any(not t.done() for t in self._running.values())
+
     def is_running(self, wf_id: str) -> bool:
         t = self._running.get(wf_id)
         return bool(t and not t.done())

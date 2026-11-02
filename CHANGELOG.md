@@ -3,6 +3,7 @@
 [Português (Brasil)](CHANGELOG.pt-BR.md)
 
 ## 0.5.2 — Portfolio polish and mock-mode fixes
+- **Optional project (`PROJECT_ROOT`):** the project can be picked from the dashboard (**Open folder…** opens the native file explorer) or created under `DEFAULT_PROJECTS_DIR` (default `~/Documents/Sinestro`); the choice is saved to `.env`. New endpoints `GET /workspace`, `POST /workspace/pick|select|create`; `POST /tasks` answers `409 project_root_required` until a project exists.
 - **Mock mode from `.env`:** `ORCH_MOCK_AGENTS` was only read from the shell environment; it is now read from `.env` (`Settings.mock_agents`), with a regression test.
 - **Dashboard:** agent cards use `minmax(0,1fr)` and no longer overflow the right edge on wide screens; model names are shown in full; the page title is now "SINESTRO".
 - **CI and quality:** GitHub Actions (ruff + pytest on Python 3.11 and 3.12), `pyproject.toml`, coverage with `pytest-cov`; justified `# noqa: BLE001` on boundary `except Exception` blocks.

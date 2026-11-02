@@ -32,6 +32,20 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .box textarea{width:100%;background:none;border:0;outline:0;resize:none;color:var(--text);font:15px/1.6 inherit;font-family:inherit;min-height:56px;max-height:240px;padding:2px 0}
 .bar2{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;gap:12px}
 .bar2-right{display:flex;align-items:center;gap:14px}
+.wsbar{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:-8px 0 0}
+.wsbar code{font:12px var(--mono);color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;padding:3px 9px;max-width:440px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wsbar button{padding:5px 12px;font-size:12px}
+.ws-warn{color:var(--warn);font-weight:600}
+.ws-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px} .ws-link:hover{color:var(--text)}
+.ws-modal{position:fixed;inset:0;z-index:1000;display:none;place-items:center;background:rgba(2,6,16,.68);padding:16px}
+.ws-modal.on{display:grid}
+.ws-card{width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:0 24px 64px rgba(0,0,0,.55)}
+.ws-card h2{margin:0 0 10px;font-size:18px}
+.ws-cur{margin:4px 0 14px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03);word-break:break-all}
+.ws-sec{padding:14px 0;border-top:1px solid var(--line)} .ws-sec p{margin:4px 0 10px}
+.ws-row{display:flex;gap:8px} .ws-row input{flex:1;min-width:0;background:#0d1424;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:8px 12px;font:inherit}
+.ws-row input:focus{outline:0;border-color:var(--blue)}
+.ws-foot{display:flex;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--line)}
 .auto-approve-wrap{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .auto-approve-txt{font-size:12px;font-weight:500;color:var(--muted);transition:color .2s ease}
 .auto-approve-wrap:hover .auto-approve-txt{color:var(--text)}
@@ -255,6 +269,7 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
     <main id="home">
       <section id="idle">
         <h1>O que vamos construir hoje?</h1>
+        <div id="wsBar" class="wsbar"></div>
         <div class="box">
           <textarea id="goal" rows="2" placeholder="Descreva a funcionalidade…"></textarea>
           <div class="bar2">
@@ -324,6 +339,24 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
   </div>
 </div>
 <div id="toast"></div>
+<div id="wsModal" class="ws-modal" onclick="if(event.target===this)closeWorkspace()">
+  <div class="ws-card" role="dialog" aria-modal="true" aria-labelledby="wsTitle">
+    <h2 id="wsTitle">Projeto</h2>
+    <div class="muted">Pasta atual</div>
+    <div class="ws-cur mono" id="wsCur"></div>
+    <div class="ws-sec">
+      <b>Abrir um projeto existente</b>
+      <p class="muted">Abre o explorador de arquivos para você escolher a pasta raiz do projeto.</p>
+      <button class="btn-primary" id="wsPickBtn" onclick="wsPick()">Abrir pasta…</button>
+    </div>
+    <div class="ws-sec">
+      <b>Criar um projeto novo</b>
+      <p class="muted">A pasta é criada em <span class="mono" id="wsDefDir"></span></p>
+      <div class="ws-row"><input id="wsName" placeholder="Nome do projeto (opcional)" maxlength="60" onkeydown="if(event.key==='Enter')wsCreate()"><button class="sec" id="wsCreateBtn" onclick="wsCreate()">Criar</button></div>
+    </div>
+    <div class="ws-foot"><button class="btn-cancel" onclick="closeWorkspace()">Fechar</button></div>
+  </div>
+</div>
 <script>
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -672,6 +705,7 @@ async function sendChatMessage(){
   if (!el) return;
   const goal = el.value.trim();
   if (goal.length < 8) return toast('Descreva melhor a solicitação.');
+  if (!WS.ready) { openWorkspace(); return toast('Selecione ou crie um projeto primeiro.'); }
   try {
     const r = await api('/tasks', {
       method: 'POST',
@@ -686,7 +720,7 @@ async function sendChatMessage(){
     renderHome(true);
     refresh();
   } catch (e) {
-    toast(e.message);
+    wsGuard(e);
   }
 }
 let pinnedChats = new Set(JSON.parse(localStorage.getItem('sinestro_pinned_chats') || '[]'));
@@ -846,8 +880,9 @@ function renderHome(force){
 }
 function setMode(b){ mode=b.dataset.m; document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x.dataset.m===mode)); }
 async function createTask(){ const goal = $('#goal').value.trim(); if(goal.length<8) return toast('Descreva melhor a solicitação.');
+  if(!WS.ready){ openWorkspace(); return toast('Selecione ou crie um projeto primeiro.'); }
   try{ const r = await api('/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({goal, mode})});
-  selected=r.id; hold=false; D={id:r.id, goal, status:'queued', subtasks:[], events:[]}; $('#goal').value=''; $('#goal').style.height=''; renderHome(true); refresh(); }catch(e){ toast(e.message); } }
+  selected=r.id; hold=false; D={id:r.id, goal, status:'queued', subtasks:[], events:[]}; $('#goal').value=''; $('#goal').style.height=''; renderHome(true); refresh(); }catch(e){ wsGuard(e); } }
 let seenErrors = parseInt(localStorage.getItem('sinestro_seen_errors') || '0', 10);
 function updateErrorBadge(){
   const el = $('#ecount');
@@ -878,11 +913,46 @@ function view(v){
   }
 }
 
+/* ---------- Projeto (PROJECT_ROOT opcional: abrir pasta ou criar) ---------- */
+let WS = {ready:true, configured:true, project_root:'', default_projects_dir:''};
+function renderWsBar(){
+  const el=$('#wsBar'); if(!el) return;
+  el.innerHTML = WS.ready
+    ? `<span>Projeto:</span> <code title="${esc(WS.project_root)}">${esc(WS.project_root)}</code> <button class="sec" onclick="openWorkspace()">Alterar</button>`
+    : `<span class="ws-warn">Nenhum projeto selecionado.</span> <button class="btn-primary" onclick="wsPick()">Abrir pasta…</button> <button class="sec" onclick="openWorkspace()">Criar novo projeto</button>`;
+}
+function openWorkspace(){ $('#wsCur').textContent = WS.ready ? WS.project_root : 'Nenhum projeto selecionado'; $('#wsDefDir').textContent = WS.default_projects_dir||''; $('#wsModal').classList.add('on'); setTimeout(()=>$('#wsName').focus(),50); }
+function closeWorkspace(){ $('#wsModal').classList.remove('on'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeWorkspace(); });
+function wsGuard(e){ if(/^project_root_required/.test(e.message)){ openWorkspace(); toast('Selecione ou crie um projeto primeiro.'); } else toast(e.message); }
+async function wsSelect(path){
+  await api('/workspace/select', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path})});
+  await loadHealth(); closeWorkspace(); toast('Projeto selecionado.');
+}
+async function wsPick(){
+  const b=$('#wsPickBtn'); b.disabled=true; b.textContent='Aguardando a janela…';
+  try{
+    const r = await api('/workspace/pick', {method:'POST'});
+    if(!r.cancelled) await wsSelect(r.path);
+  }catch(e){
+    if(/indispon/i.test(e.message)){ const p = prompt('O seletor de pastas não está disponível aqui. Cole o caminho completo da pasta do projeto:'); if(p){ try{ await wsSelect(p); }catch(err){ toast(err.message); } } }
+    else toast(e.message);
+  }finally{ b.disabled=false; b.textContent='Abrir pasta…'; }
+}
+async function wsCreate(){
+  const name=$('#wsName').value.trim(), b=$('#wsCreateBtn'); b.disabled=true;
+  try{
+    const r = await api('/workspace/create', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name||null})});
+    $('#wsName').value=''; await loadHealth(); closeWorkspace(); toast('Projeto criado em '+r.project_root);
+  }catch(e){ toast(e.message); }finally{ b.disabled=false; }
+}
+
 /* ---------- Dados ---------- */
 async function loadHealth(){ try{ const h = await api('/health'); $('#mockBanner').style.display = h.mock_mode?'block':'none'; $('#ver').textContent = 'v'+h.version;
+  WS = {ready: !!h.project_root_exists, configured: h.project_root_configured!==false, project_root: h.project_root||'', default_projects_dir: h.default_projects_dir||''}; renderWsBar();
   const wsIco = h.project_root_exists ? `<span class="status-ico ok" title="Workspace pronto">${svg('ok')}</span>` : `<span class="status-ico bad" title="Workspace não encontrado">${svg('bad')}</span>`;
   const gitIco = h.git_repo ? `<span class="status-ico ok" title="Repositório Git ativo">${svg('ok')}</span>` : `<span class="status-ico bad" title="Sem Git">${svg('bad')}</span>`;
-  $('#health').innerHTML = `workspace ${wsIco} git ${gitIco}`;
+  $('#health').innerHTML = `<span class="ws-link" onclick="openWorkspace()" title="Trocar de projeto">workspace</span> ${wsIco} git ${gitIco}`;
   if(typeof h.agy_auto_approve_permissions === 'boolean') updateAutoApproveUI(h.agy_auto_approve_permissions);
 }catch(e){ $('#health').textContent='API indisponível'; }
   try{ const c = await api('/checks/status'); $('#checksBanner').style.display = c.any_active?'none':'block'; }catch(e){} }

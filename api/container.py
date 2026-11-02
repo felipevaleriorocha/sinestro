@@ -5,6 +5,7 @@ import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 import httpx
 from a2a.server.tasks import DatabaseTaskStore
@@ -220,3 +221,24 @@ def update_auto_approve_permissions(container: Container, enabled: bool) -> Sett
         gemini_backend.settings = new_settings
     return new_settings
 
+
+
+def update_project_root(container: Container, root: Path, env_file: Path | None = None) -> Settings:
+    """Troca o projeto gerenciado em tempo de execução e persiste PROJECT_ROOT no .env."""
+    if container.coordinator.any_running():
+        raise RuntimeError("Há workflows em execução. Aguarde terminar ou cancele antes de trocar de projeto.")
+    update_env_variable("PROJECT_ROOT", str(root), env_file)
+
+    new_settings = replace(container.settings, project_root=root, project_configured=True)
+    container.settings = new_settings
+    container.coordinator.s = new_settings
+    for holder in (*container.backends.values(), *container.providers.values(), container.domain):
+        if hasattr(holder, "settings"):
+            holder.settings = new_settings
+    container.context.project_root = root
+    container.context._indexed = False  # o índice RAG pertence ao projeto anterior
+    container.context._frozen.clear()
+    container.locks.project_root = root
+    container.git.root = root
+    container.checks.root = root
+    return new_settings

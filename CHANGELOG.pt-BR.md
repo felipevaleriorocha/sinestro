@@ -3,6 +3,7 @@
 [English](CHANGELOG.md)
 
 ## 0.5.2 — Polimento para portfólio e correções do modo mock
+- **Projeto opcional (`PROJECT_ROOT`):** o projeto pode ser escolhido pelo painel (**Abrir pasta…** abre o explorador de arquivos do sistema) ou criado em `DEFAULT_PROJECTS_DIR` (padrão `~/Documents/Sinestro`); a escolha é gravada no `.env`. Novos endpoints `GET /workspace`, `POST /workspace/pick|select|create`; `POST /tasks` responde `409 project_root_required` enquanto não houver projeto.
 - **Modo mock pelo `.env`:** `ORCH_MOCK_AGENTS` só era lido do ambiente do shell; agora é lido do `.env` (`Settings.mock_agents`), com teste de regressão.
 - **Painel:** os cards dos agentes usam `minmax(0,1fr)` e não estouram mais a borda direita em telas largas; o nome do modelo aparece inteiro; o título da página passa a ser "SINESTRO".
 - **CI e qualidade:** GitHub Actions (ruff + pytest em Python 3.11 e 3.12), `pyproject.toml`, cobertura com `pytest-cov`; `# noqa: BLE001` justificado nos `except Exception` de borda.

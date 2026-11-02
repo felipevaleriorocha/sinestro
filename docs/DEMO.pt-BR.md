@@ -20,9 +20,10 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 No `.env`, defina:
 
 ```
-PROJECT_ROOT=C:\caminho\para\uma\pasta\vazia   # a pasta precisa existir; crie antes
 ORCH_MOCK_AGENTS=true
 ```
+
+O `PROJECT_ROOT` é opcional. Deixe vazio e escolha o projeto pelo painel (passo 3).
 
 ## 2. Subir
 
@@ -33,9 +34,11 @@ ORCH_MOCK_AGENTS=true
 - Painel: <http://127.0.0.1:8787/dashboard/>
 - API: <http://127.0.0.1:8787/docs>
 
-## 3. Enviar uma tarefa
+## 3. Escolher um projeto e enviar uma tarefa
 
-Pelo painel, ou:
+No primeiro uso, o painel pede um projeto: **Abrir pasta…** abre o explorador de arquivos para você escolher um projeto existente, e **Criar novo projeto** cria uma pasta em `~/Documents/Sinestro`. A escolha é gravada no `.env`.
+
+Depois envie a tarefa pelo painel, ou:
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" -d "{\"goal\": \"Criar um modulo hello-world\", \"mode\": \"full\"}"

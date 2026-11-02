@@ -88,7 +88,7 @@ Mock agents let you run the whole workflow, dashboard and API without any model,
 
 ```bash
 python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
-cp -n .env.example .env   # then set PROJECT_ROOT to an existing empty folder (create it first) and ORCH_MOCK_AGENTS=true
+cp -n .env.example .env   # then set ORCH_MOCK_AGENTS=true (PROJECT_ROOT is optional: pick or create the project in the dashboard)
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 
@@ -106,7 +106,7 @@ See [docs/DEMO.md](docs/DEMO.md) for a guided walkthrough.
 ```bash
 git clone <repository-url> sinestro
 cd sinestro
-cp -n .env.example .env  # Set PROJECT_ROOT and the required credentials
+cp -n .env.example .env  # Set the required credentials (PROJECT_ROOT is optional: you can pick the project in the dashboard)
 ```
 
 On Windows (PowerShell):
@@ -142,7 +142,8 @@ The `.env` file contains local configuration and secrets. **Never commit it to v
 
 | Variable | Default | Description |
 |---|---|---|
-| `PROJECT_ROOT` | — | Absolute path to the managed workspace. |
+| `PROJECT_ROOT` | — | Optional. Absolute path to the managed workspace. If empty, choose it in the dashboard (**Open folder…** opens your file explorer) or create a new one; the choice is saved here. |
+| `DEFAULT_PROJECTS_DIR` | `~/Documents/Sinestro` | Where **Create new project** creates folders. |
 | `OPENCODE_URL` | `http://127.0.0.1:4096` | Local development server endpoint. |
 | `OPENCODE_MODEL` | `opencode/deepseek-v4.1-flash-free` | Model identifier (`provider/model`). |
 | `OPENCODE_AGENT` | `Build` | Implementation agent persona. |
@@ -184,6 +185,7 @@ Before code is executed or delegated, the task plan is analyzed by `DependencyAn
 | Cancel workflow | `POST /tasks/{id}/cancel` | Requests safe cancellation and records the stop audit. |
 | Clear agent quota | `POST /agents/{name}/clear-quota` | Resets a persisted cooldown after quota availability is restored. |
 | Integration status | `GET /checks/status` | Lists installed and active validation tools. |
+| Project (workspace) | `GET /workspace`, `POST /workspace/pick`, `POST /workspace/select`, `POST /workspace/create` | Reads the current project, opens the file explorer, selects a folder or creates one under `DEFAULT_PROJECTS_DIR`. Refused while a workflow runs; `POST /tasks` answers `409 project_root_required` until a project is set. |
 | Lock manager | `GET /locks`, `GET /locks/history` | Shows currently reserved resources and the audit history. |
 
 ## Tests and validation

@@ -7,9 +7,16 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from api.container import update_auto_approve_permissions
+from api.container import update_auto_approve_permissions, update_project_root
 from communication.a2a_server import agent_base_path, card_to_dict
 from core.version import __version__
+from core.workspace import (
+    PickerUnavailable,
+    WorkspaceError,
+    create_project_dir,
+    pick_folder,
+    validate_project_dir,
+)
 from orchestrator.assignment import other
 from orchestrator.dependency_analyzer import DependencyAnalyzer
 from orchestrator.schemas import AssignmentDecision
@@ -47,6 +54,14 @@ class AutoApproveRequest(BaseModel):
     enabled: bool
 
 
+class WorkspaceSelect(BaseModel):
+    path: str = Field(min_length=1, max_length=1000)
+
+
+class WorkspaceCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=80)
+
+
 class TaskUpdate(BaseModel):
     goal: str | None = Field(default=None, max_length=10000)
 
@@ -54,6 +69,10 @@ class TaskUpdate(BaseModel):
 
 def C(request: Request):
     return request.app.state.container
+
+
+def workspace_ready(c) -> bool:
+    return bool(c.settings.project_configured and c.settings.project_root.is_dir())
 
 
 @router.get("/health", tags=["Sistema"])
@@ -66,6 +85,8 @@ async def health(request: Request) -> dict[str, Any]:
 @router.post("/tasks", status_code=202, tags=["Tarefas"])
 async def create_task(body: TaskRequest, request: Request) -> dict[str, str]:
     c = C(request)
+    if not workspace_ready(c):
+        raise HTTPException(409, detail="project_root_required: selecione ou crie um projeto antes de enviar tarefas.")
     wf_id = c.tasks.create_workflow(body.goal, body.mode)
     c.coordinator.start(wf_id)
     return {"id": wf_id, "status": WF.QUEUED, "status_url": f"/tasks/{wf_id}"}
@@ -472,3 +493,64 @@ def update_auto_approve_setting(body: AutoApproveRequest, request: Request) -> d
     return {"ok": True, "enabled": new_settings.agy_auto_approve_permissions}
 
 
+
+
+def _workspace_info(c) -> dict[str, Any]:
+    s = c.settings
+    ready = workspace_ready(c)
+    return {
+        "configured": s.project_configured,
+        "ready": ready,
+        "project_root": str(s.project_root) if s.project_configured else "",
+        "default_projects_dir": str(s.default_projects_dir),
+    }
+
+
+def _select_workspace(c, path) -> dict[str, Any]:
+    try:
+        update_project_root(c, path)
+    except RuntimeError as exc:
+        raise HTTPException(409, detail=str(exc)) from exc
+    return _workspace_info(c)
+
+
+@router.get("/workspace", tags=["Projeto"])
+def get_workspace(request: Request) -> dict[str, Any]:
+    return _workspace_info(C(request))
+
+
+@router.post("/workspace/pick", tags=["Projeto"])
+async def pick_workspace(request: Request) -> dict[str, Any]:
+    """Abre o explorador de arquivos do sistema para o usuário escolher a pasta (não altera o projeto)."""
+    c = C(request)
+    initial = c.settings.project_root if workspace_ready(c) else (
+        c.settings.default_projects_dir if c.settings.default_projects_dir.is_dir() else None
+    )
+    try:
+        path = await asyncio.to_thread(pick_folder, initial)
+    except PickerUnavailable as exc:
+        raise HTTPException(501, detail=str(exc)) from exc
+    return {"path": path, "cancelled": not path}
+
+
+@router.post("/workspace/select", tags=["Projeto"])
+def select_workspace(body: WorkspaceSelect, request: Request) -> dict[str, Any]:
+    c = C(request)
+    try:
+        path = validate_project_dir(body.path)
+    except WorkspaceError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    return _select_workspace(c, path)
+
+
+@router.post("/workspace/create", status_code=201, tags=["Projeto"])
+def create_workspace(body: WorkspaceCreate, request: Request) -> dict[str, Any]:
+    """Cria um diretório novo em DEFAULT_PROJECTS_DIR e o seleciona como projeto."""
+    c = C(request)
+    if c.coordinator.any_running():
+        raise HTTPException(409, detail="Há workflows em execução. Aguarde terminar ou cancele antes de trocar de projeto.")
+    try:
+        path = create_project_dir(c.settings.default_projects_dir, body.name)
+    except WorkspaceError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    return {**_select_workspace(c, path), "created": True}

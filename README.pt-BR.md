@@ -88,7 +88,7 @@ Os agentes simulados (mock) executam o workflow completo, o painel e a API sem m
 
 ```bash
 python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
-cp -n .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia que já exista (crie antes) e ORCH_MOCK_AGENTS=true
+cp -n .env.example .env   # depois defina ORCH_MOCK_AGENTS=true (PROJECT_ROOT é opcional: escolha ou crie o projeto pelo painel)
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 
@@ -106,7 +106,7 @@ Veja [docs/DEMO.pt-BR.md](docs/DEMO.pt-BR.md) para um roteiro guiado.
 ```bash
 git clone <url-do-repositorio> sinestro
 cd sinestro
-cp -n .env.example .env  # Configure PROJECT_ROOT e as credenciais necessárias
+cp -n .env.example .env  # Configure as credenciais necessárias (PROJECT_ROOT é opcional: dá para escolher o projeto pelo painel)
 ```
 
 No Windows (PowerShell):
@@ -142,7 +142,8 @@ O arquivo `.env` contém configurações locais e segredos. **Nunca o versione n
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `PROJECT_ROOT` | — | Caminho absoluto do workspace gerenciado. |
+| `PROJECT_ROOT` | — | Opcional. Caminho absoluto do workspace gerenciado. Se vazio, escolha pelo painel (**Abrir pasta…** abre o explorador de arquivos) ou crie um novo; a escolha é gravada aqui. |
+| `DEFAULT_PROJECTS_DIR` | `~/Documents/Sinestro` | Onde **Criar novo projeto** cria as pastas. |
 | `OPENCODE_URL` | `http://127.0.0.1:4096` | Endpoint do servidor local de desenvolvimento. |
 | `OPENCODE_MODEL` | `opencode/deepseek-v4.1-flash-free` | Identificador do modelo (`provider/model`). |
 | `OPENCODE_AGENT` | `Build` | Persona operacional de implementação. |
@@ -184,6 +185,7 @@ Antes de executar ou delegar código, o plano é analisado pelo `DependencyAnaly
 | Cancelar workflow | `POST /tasks/{id}/cancel` | Solicita cancelamento seguro e registra a auditoria da parada. |
 | Liberar cota de agente | `POST /agents/{name}/clear-quota` | Redefine um cooldown persistido após a normalização da cota. |
 | Status das integrações | `GET /checks/status` | Lista as ferramentas de validação instaladas e ativas. |
+| Projeto (workspace) | `GET /workspace`, `POST /workspace/pick`, `POST /workspace/select`, `POST /workspace/create` | Lê o projeto atual, abre o explorador de arquivos, seleciona uma pasta ou cria uma em `DEFAULT_PROJECTS_DIR`. Recusado enquanto um workflow roda; `POST /tasks` responde `409 project_root_required` até haver um projeto. |
 | Gerenciador de locks | `GET /locks`, `GET /locks/history` | Exibe recursos reservados no momento e o histórico de auditoria. |
 
 ## Testes e validação

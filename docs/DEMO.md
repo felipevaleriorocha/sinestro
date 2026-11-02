@@ -20,9 +20,10 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 In `.env`, set:
 
 ```
-PROJECT_ROOT=C:\path\to\an\empty\folder   # the folder must already exist; create it first
 ORCH_MOCK_AGENTS=true
 ```
+
+`PROJECT_ROOT` is optional. Leave it empty and choose the project in the dashboard (step 3).
 
 ## 2. Start
 
@@ -35,9 +36,11 @@ ORCH_MOCK_AGENTS=true
 
 The log should print `mock=True`. If it prints `mock=False`, stop the server (`Ctrl+C`) and check the `.env`.
 
-## 3. Submit a task
+## 3. Pick a project and submit a task
 
-From the dashboard, or:
+On first use, the dashboard asks for a project: **Open folder…** opens your file explorer so you can choose an existing project, and **Create new project** makes a folder under `~/Documents/Sinestro`. The choice is saved to `.env`.
+
+Then submit the task from the dashboard, or:
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" -d "{\"goal\": \"Create a hello-world module\", \"mode\": \"full\"}"
