@@ -124,6 +124,18 @@ Após iniciar o serviço:
 - **Painel de operações:** <http://127.0.0.1:8787/dashboard/>
 - **Documentação da API (OpenAPI/Swagger):** <http://127.0.0.1:8787/docs>
 
+## Scripts de inicialização (Windows)
+
+| Script | O que faz |
+|---|---|
+| `start.bat` | Inicia o OpenCode e o orquestrador em segundo plano (headless) e abre o painel quando o `/health` responde. |
+| `stop.bat` | Encerra tudo que estiver escutando nas portas 8787 (orquestrador), 4096 (OpenCode) e 34872 (Rojo). |
+| `restart.bat` | `stop.bat` seguido de `start.bat`. |
+| `start.ps1` | Inicia só o orquestrador em primeiro plano (cria o `.venv` e instala as dependências na primeira execução). Também inicia o `rojo serve` quando o `PROJECT_ROOT` tem `default.project.json`. |
+| `run_opencode.ps1` | Inicia só o servidor OpenCode local, restrito a `127.0.0.1`. |
+| `scripts/run_tests.ps1` | Suíte de testes com mocks; `-Live` adiciona checagens reais de infraestrutura sem tokens, e `-LiveTokens` também envia prompts (consome cota). |
+| `python run_server.py` | Forma multiplataforma de iniciar o orquestrador (é o que o `start.ps1` chama). |
+
 ## Configuração do ambiente (`.env`)
 
 O arquivo `.env` contém configurações locais e segredos. **Nunca o versione no Git.**

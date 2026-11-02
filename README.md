@@ -124,6 +124,18 @@ Once the service is running:
 - **Operations dashboard:** <http://127.0.0.1:8787/dashboard/>
 - **API documentation (OpenAPI/Swagger):** <http://127.0.0.1:8787/docs>
 
+## Startup scripts (Windows)
+
+| Script | What it does |
+|---|---|
+| `start.bat` | Starts OpenCode and the orchestrator in the background (headless) and opens the dashboard when `/health` answers. |
+| `stop.bat` | Stops everything listening on ports 8787 (orchestrator), 4096 (OpenCode) and 34872 (Rojo). |
+| `restart.bat` | `stop.bat` followed by `start.bat`. |
+| `start.ps1` | Starts only the orchestrator in the foreground (creates `.venv` and installs dependencies on the first run). Also starts `rojo serve` when `PROJECT_ROOT` contains `default.project.json`. |
+| `run_opencode.ps1` | Starts only the local OpenCode server, bound to `127.0.0.1`. |
+| `scripts/run_tests.ps1` | Test suite with mocks; `-Live` adds real infrastructure checks without tokens, `-LiveTokens` also sends prompts (uses quota). |
+| `python run_server.py` | Cross-platform way to start the orchestrator (what `start.ps1` calls). |
+
 ## Environment configuration (`.env`)
 
 The `.env` file contains local configuration and secrets. **Never commit it to version control.**
