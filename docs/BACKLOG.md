@@ -54,3 +54,34 @@ Totals over the 7 calls: Gemini 4 calls (100.5k input / 15.0k output tokens, est
 ### Still to measure
 
 Solo baselines (`agy`, OpenCode), full mode on a 2–3 subtask feature, quota failover mid-task, and `/metrics/routing-stats` after ~20–30 clean tasks.
+
+## Scenario 1: full orchestrator vs. each agent alone (2026-11-02, 1 sample)
+
+Same task for every arm: three small Luau modules (`Stack`, `Queue`, and `Collections`, which depends on the other two), no type annotations. Fresh git folder per run, same models (`gemini-3.8-flash-high`, `deepseek-v4.1-flash-free`). `agy` ran with `--dangerously-skip-permissions` **only for this benchmark** (see finding 1). One sample per arm, so treat it as a strong anecdote, not statistics.
+
+| | Orchestrator, full mode | `agy` alone | OpenCode alone |
+|---|---|---|---|
+| Wall time | 544 s | 94 s | 21 s |
+| Calls | 10 (Gemini 6, DeepSeek 4) | 1 | 1 (6 tool steps) |
+| Tokens in / out | Gemini 291k / 42k, DeepSeek 5k / 2k | 129k (118k cache) / 7k | ~81k (incl. cache) / 1k |
+| Estimated cost | US$ 0.57 (estimate) | n/a | free model |
+| Human interventions | 0 | 0 | 0 |
+| Result | 3 files, 16/16 API checks, final review `passed` | 3 files, 16/16 | 3 files, 16/16 |
+| `selene` | 0 errors (agent added `--# selene: allow(undefined_variable)`) | 2 errors (`script` undefined) | 2 errors (`script` undefined) |
+
+I read all nine files: the logic is equivalent and correct in every arm (empty `pop`/`peek`/`dequeue` return `nil`, `reverse` builds a new list through a `Stack` and does not mutate its input, each module returns its table).
+
+**Reading against the decision rule** (≤ 1.5× time and ≤ 2× calls of the best solo arm for a feature): the orchestrator took about 26× the time of OpenCode alone (5.8× of `agy` alone) and 10× the calls, for the same quality. On a task this small it does not pay. This says nothing yet about harder or riskier work, where cross-review might catch real defects; here there were none to catch.
+
+Where the 544 s went: Gemini ≈ 516 s (plan 99 s, `T3` implementation 243 s + 63 s fix, three reviews 19–39 s, final review 47 s), DeepSeek ≈ 56 s (two implementations of 14 s each, one review of 19 s, one assignment answer of 9 s). The subtask assigned to Gemini cost more than everything DeepSeek did.
+
+### Findings
+
+1. **`agy` in headless mode cannot finish an implementation without `--dangerously-skip-permissions`.** In the pilot it was denied 3 times out of 3: a shell command (solo, `accept-edits` mode), an MCP action (as implementer inside the orchestrator) and a command (review, earlier run). The solo call even returned `status: SUCCESS` with an empty response. This is the real reliability limit of the `agy` channel today.
+2. **`opencode run` takes its working directory from the `PWD` environment variable, not from the process directory.** Started from a shell whose `PWD` was the project repository, it wrote files there. The orchestrator is not affected (it passes `location.directory` explicitly), but any script that launches `opencode run` must set `PWD`.
+3. **The `selene` false positive is back** (`script` is not defined, the Roblox global). The implementer silenced it with an inline `allow` comment. Same fix as the earlier finding: configure `selene` with the Roblox standard library.
+4. **Assignment policy matters more than the number of calls.** Routing the implementation to DeepSeek and keeping Gemini for planning and review would have cut roughly half of the time on this task.
+
+### Next
+
+Run the failover scenario (quota exhausted mid-task). Optionally repeat scenario 1 with a harder, defect-prone feature, where the review stage has something to find, and with 2 more repetitions.
