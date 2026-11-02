@@ -2,7 +2,7 @@
 
 [English](BACKLOG.md)
 
-Origem: auditoria externa do commit `7de4854` (2026-11), reconferida contra a `main` em `d7876b4` em 2026-11-02, mais a primeira execução com agentes reais. A auditoria é uma opinião de fora: cada item foi verificado no código antes de ser aceito. Status: **Corrigido**, **Aberto**, **Decisão** (depende do dono) e **Não verificado**.
+Origem: auditoria externa do commit `7de4854` (2026-11), reconferida contra a `main` em `d7876b4` em 2026-11-02, mais a primeira execução com agentes reais. A auditoria é uma opinião de fora: cada item foi verificado no código antes de ser aceito. Status: **Corrigido**, **Aberto** e **Não verificado**.
 
 ## Itens da auditoria
 
@@ -20,8 +20,7 @@ Origem: auditoria externa do commit `7de4854` (2026-11), reconferida contra a `m
 | 10 | Badge de cota usa orçamentos de tokens inventados | Aberto | `agent_registry.py` assume 1,2M/500k tokens por 24 h; a cota real é semanal. Mostrar cooldown real e contadores semanais locais, rotulados "estimado". |
 | 11 | Sem progresso ao vivo (`/activity`, stream-json/SSE) | Aberto | O painel continua inferindo o que cada agente faz. |
 | 12 | `raw_text` ainda chega ao revisor | Aberto | O `model_dump()` do relatório de implementação o inclui. |
-| 13 | Termos de uso para orquestrar o `agy` | **Decisão** | As respostas do fórum se contradizem; o código nunca toca em tokens nem credenciais. Decidir antes de usar o `agy` dentro do orquestrador a longo prazo. Não é aconselhamento jurídico. |
-| 14 | `agy -p` devolvendo 0 bytes sem TTY (Windows) | Não observado | Não ocorreu na execução real abaixo (7 chamadas, 0 vazias). Continuar acompanhando a taxa de respostas vazias. |
+| 13 | `agy -p` devolvendo 0 bytes sem TTY (Windows) | Não observado | Não ocorreu na execução real abaixo (7 chamadas, 0 vazias). Continuar acompanhando a taxa de respostas vazias. |
 
 Fora do escopo agora (segundo a auditoria): mais provedores, RAG, execução paralela, ACP, generalizar para N agentes e estimativas em dólar.
 

@@ -2,7 +2,7 @@
 
 [Português (Brasil)](BACKLOG.pt-BR.md)
 
-Source: an external audit of commit `7de4854` (2026-11), re-checked against `main` at `d7876b4` on 2026-11-02, plus the first run with real agents. The audit is an outside opinion: items are verified against the code before being trusted. Status: **Fixed**, **Open**, **Decision** (needs the owner), **Not verified**.
+Source: an external audit of commit `7de4854` (2026-11), re-checked against `main` at `d7876b4` on 2026-11-02, plus the first run with real agents. The audit is an outside opinion: items are verified against the code before being trusted. Status: **Fixed**, **Open**, **Not verified**.
 
 ## Audit items
 
@@ -20,8 +20,7 @@ Source: an external audit of commit `7de4854` (2026-11), re-checked against `mai
 | 10 | Quota badge uses invented token budgets | Open | `agent_registry.py` assumes 1.2M/500k tokens per 24 h; the real quota is weekly. Show real cooldown plus local weekly counters, labelled "estimated". |
 | 11 | No live progress (`/activity`, stream-json/SSE) | Open | The dashboard still infers what each agent is doing. |
 | 12 | `raw_text` still reaches the reviewer | Open | `model_dump()` of the implementation report includes it. |
-| 13 | Terms of service for orchestrating `agy` | **Decision** | Forum answers conflict; the code never touches tokens or credentials. Decide before using `agy` inside the orchestrator long term. Not legal advice. |
-| 14 | `agy -p` returning 0 bytes when stdout is not a TTY (Windows) | Not observed | Did not happen in the real run below (7 calls, 0 empty). Keep watching the empty-response rate. |
+| 13 | `agy -p` returning 0 bytes when stdout is not a TTY (Windows) | Not observed | Did not happen in the real run below (7 calls, 0 empty). Keep watching the empty-response rate. |
 
 Not planned now (from the audit): more providers, RAG, parallel execution, ACP, generalizing to N agents, dollar estimates.
 
