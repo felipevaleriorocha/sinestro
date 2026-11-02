@@ -869,6 +869,7 @@ async function doRagIndex(){
 }
 function renderTech(force){
   if(vw!=='tech') return;
+  const d = D;
   renderTechNav();
   renderExSel();
   const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none=emptyState('Nada para exibir', 'Nenhum registro encontrado nesta categoria.');
