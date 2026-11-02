@@ -4,9 +4,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from core.version import __version__
 from database.repository import Repository
 
-VERSION = "0.5.0"
+VERSION = __version__
 
 
 class WF:

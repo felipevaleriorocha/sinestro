@@ -8,6 +8,8 @@ from typing import Callable
 
 import httpx
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,6 +19,7 @@ from api.routes import router
 from communication.a2a_server import mount_a2a_agents
 from core.config import BASE_DIR, Settings, load_settings
 from core.logging_setup import register_secrets, setup_logging
+from core.version import __version__
 from orchestrator.agent_registry import AGENT_DEFINITIONS
 
 log = logging.getLogger("orchestrator")
@@ -44,7 +47,18 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
         yield
         await shutdown(app)
 
-    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version="0.5.1", lifespan=lifespan)
+    app = FastAPI(title="Roblox Multi-Agent Orchestrator", version=__version__, lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1", "::1", "testserver", "*"],
+    )
     holder["app"] = app
     app.state.container = container
     app.state.started = False

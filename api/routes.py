@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from communication.a2a_server import agent_base_path, card_to_dict
 from api.container import update_auto_approve_permissions
+from core.version import __version__
 from orchestrator.assignment import other
 from orchestrator.dependency_analyzer import DependencyAnalyzer
 from orchestrator.schemas import AssignmentDecision
@@ -54,7 +55,7 @@ def C(request: Request):
 @router.get("/health", tags=["Sistema"])
 async def health(request: Request) -> dict[str, Any]:
     c = C(request)
-    return {"ok": True, "version": "0.5.1", "mock_mode": c.mock_mode, **c.settings.public_summary(),
+    return {"ok": True, "version": __version__, "mock_mode": c.mock_mode, **c.settings.public_summary(),
             "git_repo": await asyncio.to_thread(c.git.is_repo)}
 
 

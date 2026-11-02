@@ -1,13 +1,47 @@
+# Ambientes e segredos
 .env
+.env.*
+!.env.example
+
+# Python & Ambientes Virtuais
 .venv/
+venv/
+ENV/
+env/
 __pycache__/
-*.pyc
-orchestrator*.db
-orchestrator*.db-*
-orchestrator*.db.bak-*
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Bancos de dados SQLite & Backups
 *.db
 *.db-*
+*.db.bak-*
+orchestrator*.db*
+
+# Logs & Runtime
 runtime/
 logs/
-config/mcp_servers.json
+
+# Testes e Qualidade
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDEs e Editores
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Configurações locais específicas
+config/mcp_servers.json

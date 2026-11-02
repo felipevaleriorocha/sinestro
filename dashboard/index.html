@@ -336,11 +336,14 @@ setInterval(tick, 1000);
 // Renderização sem perder rolagem/seleção (FRONTEND.md, seção 2).
 function setHTML(el, html, force){
   if(!el) return;
-  if(!force){ if(el._h===html) return; const s=getSelection(); if(s && !s.isCollapsed && el.contains(s.anchorNode)) return; if(el.querySelector('details[open]')) return; }
-  const sy=scrollY, st=el.scrollTop, ps=[...el.querySelectorAll('pre')].map(p=>p.scrollTop);
+  if(el._h===html) return;
+  if(!force){ const s=getSelection(); if(s && !s.isCollapsed && el.contains(s.anchorNode)) return; if(el.querySelector('details[open]')) return; }
+  const sy=scrollY, st=el.scrollTop;
+  const pres=el.querySelectorAll('pre');
+  const ps=pres.length ? [...pres].map(p=>p.scrollTop) : null;
   el.innerHTML=html; el._h=html; el.scrollTop=st;
-  el.querySelectorAll('pre').forEach((p,i)=>{ p.scrollTop=ps[i]||0; });
-  scrollTo(0,sy); tick();
+  if(ps && ps.length) el.querySelectorAll('pre').forEach((p,i)=>{ p.scrollTop=ps[i]||0; });
+  if(scrollY!==sy) scrollTo(0,sy);
 }
 function toast(m){ const e=$('#toast'); e.textContent=m; e.style.display='block'; setTimeout(()=>e.style.display='none',3500); }
 async function api(path, opt){ const r = await fetch(path, opt); if(!r.ok){ let d=''; try{d=(await r.json()).detail}catch{}; throw new Error(typeof d==='string'?d:(d&&d.detail)||JSON.stringify(d)||r.status);} return r.json(); }
@@ -680,7 +683,8 @@ function view(v){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   if(v==='tech'){
     if(tsec==='errors') dismissErrors();
-    loadTech(true);
+    renderTech(true);
+    loadTechData(tsec);
   } else {
     renderHome(true);
   }
@@ -793,15 +797,67 @@ const row = (tm,who,tag,body,cls) => `<details class="lr ${cls||''}"><summary><s
 function renderExSel(){ const el=$('#exsel'); if(!el || document.activeElement===el) return;
   const h=(selected?'':'<option value="">Selecione uma execução…</option>')+WF.map(w=>`<option value="${esc(w.id)}" ${w.id===selected?'selected':''}>${esc(t(w.created_at))} · ${esc(w.goal.slice(0,70))} · ${esc(w.status)}</option>`).join('');
   if(el._h!==h){ el.innerHTML=h; el._h=h; } }
-async function loadTech(force){
+let _techFetching = false;
+async function loadTechData(k){
+  const target = k || tsec;
   const g = p => api(p).catch(() => null);
-  if(tsec==='messages'&&selected) X.m=await g(`/tasks/${selected}/messages`);
-  if(tsec==='files'&&selected) X.f=await g(`/files/changes?workflow_id=${selected}`);
-  if(tsec==='runs') X.r=await g('/runs?limit=50');
-  if(tsec==='allmsg') X.a=await g('/messages?limit=60');
-  if(tsec==='providers') X.prov=await g('/providers');
-  if(tsec==='costs') X.costs=await g(`/metrics/costs${selected?'?workflow_id='+selected:''}`);
+  let updated = false;
+
+  if(target==='messages'&&selected){ const res = await g(`/tasks/${selected}/messages`); if(res){ X.m=res; updated=true; } }
+  else if(target==='files'&&selected){ const res = await g(`/files/changes?workflow_id=${selected}`); if(res){ X.f=res; updated=true; } }
+  else if(target==='runs'){ const res = await g('/runs?limit=50'); if(res){ X.r=res; updated=true; } }
+  else if(target==='allmsg'){ const res = await g('/messages?limit=60'); if(res){ X.a=res; updated=true; } }
+  else if(target==='providers'){ const res = await g('/providers'); if(res){ X.prov=res; updated=true; } }
+  else if(target==='costs'){ const res = await g(`/metrics/costs${selected?'?workflow_id='+selected:''}`); if(res){ X.costs=res; updated=true; } }
+
+  if(updated && vw==='tech' && tsec===target){
+    renderTech(false);
+  }
+}
+async function loadTech(force){
+  await loadTechData(tsec);
   renderTech(force);
+}
+function switchTechSec(k){
+  tsec=k;
+  flt='todos';
+  if(k==='errors') dismissErrors();
+  const nav=$('#tnav');
+  if(nav){
+    nav.querySelectorAll('button[data-sec]').forEach(b=>{
+      b.classList.toggle('on', b.dataset.sec===k);
+    });
+  }
+  renderTech(false);
+  loadTechData(k);
+}
+function renderTechNav(){
+  const nav=$('#tnav');
+  if(!nav) return;
+  const cnt={errors:Math.max(0,ERR.length-seenErrors), decisions:DEC.length, locks:LK.length};
+  const existingBtns=nav.querySelectorAll('button[data-sec]');
+  if(existingBtns.length>0){
+    existingBtns.forEach(b=>{
+      const k=b.dataset.sec;
+      b.classList.toggle('on', k===tsec);
+      let bd=b.querySelector('.bd');
+      const count=cnt[k]||0;
+      if(count>0){
+        if(!bd){
+          bd=document.createElement('span');
+          bd.className=`bd ${k==='errors'?'e':''}`;
+          b.appendChild(bd);
+        }
+        bd.textContent=count;
+        bd.style.display='inline-block';
+      }else if(bd){
+        bd.style.display='none';
+      }
+    });
+    return;
+  }
+  const nb=k=>`<button data-sec="${k}" class="${k===tsec?'on':''}" onclick="switchTechSec('${k}')">${TS[k]||k}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
+  nav.innerHTML='<div class="grp">Execução selecionada</div>'+['subtasks','dag','plan','messages','files'].map(nb).join('')+'<div class="grp">Multi-Provider & RAG</div>'+['providers','costs','rag'].map(nb).join('')+'<div class="grp">Geral</div>'+['events','errors','decisions','locks','runs','allmsg','agents','mcp'].map(nb).join('');
 }
 async function doRagSearch(){
   const q=($('#ragQuery')?.value||'').trim();
@@ -813,9 +869,7 @@ async function doRagIndex(){
 }
 function renderTech(force){
   if(vw!=='tech') return;
-  const d=D, cnt={errors:Math.max(0,ERR.length-seenErrors), decisions:DEC.length, locks:LK.length};
-  const nb=k=>`<button class="${k===tsec?'on':''}" onclick="tsec='${k}';flt='todos';if(k==='errors')dismissErrors();loadTech(true)">${TS[k]||k}${cnt[k]?` <span class="bd ${k==='errors'?'e':''}">${cnt[k]}</span>`:''}</button>`;
-  setHTML($('#tnav'), '<div class="grp">Execução selecionada</div>'+['subtasks','dag','plan','messages','files'].map(nb).join('')+'<div class="grp">Multi-Provider & RAG</div>'+['providers','costs','rag'].map(nb).join('')+'<div class="grp">Geral</div>'+['events','errors','decisions','locks','runs','allmsg','agents','mcp'].map(nb).join(''), true);
+  renderTechNav();
   renderExSel();
   const pass = e => flt==='todos' || e.level===flt || String(e.agent||'').toLowerCase()===flt, byTime=(a,b)=>String(b.created_at).localeCompare(String(a.created_at)), none=emptyState('Nada para exibir', 'Nenhum registro encontrado nesta categoria.');
   let h='';
