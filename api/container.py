@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Callable
 
 import httpx
 from a2a.server.tasks import DatabaseTaskStore

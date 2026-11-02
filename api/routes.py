@@ -7,8 +7,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from communication.a2a_server import agent_base_path, card_to_dict
 from api.container import update_auto_approve_permissions
+from communication.a2a_server import agent_base_path, card_to_dict
 from core.version import __version__
 from orchestrator.assignment import other
 from orchestrator.dependency_analyzer import DependencyAnalyzer

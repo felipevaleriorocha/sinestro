@@ -9,10 +9,9 @@ Valida:
 """
 from __future__ import annotations
 
-import asyncio
 import pytest
 
-from agents.mock_adapters import build_mock_backends, plan_json, symmetric_responder
+from agents.mock_adapters import build_mock_backends, symmetric_responder
 from core.workflow import (
     CycleDetectedError,
     InvalidStageDependencyError,

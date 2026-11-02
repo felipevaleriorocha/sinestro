@@ -1,7 +1,7 @@
 """[MOCK] Runner de checagens: lista fixa, sem shell, skipped quando ausente, falha com assinatura estável."""
 import sys
 
-from orchestrator.checks import ChecksRunner, CheckSpec
+from orchestrator.checks import CheckSpec, ChecksRunner
 from tests.conftest import ROOT
 
 FAKE = str(ROOT / "tests" / "fakes" / "fake_checker.py")

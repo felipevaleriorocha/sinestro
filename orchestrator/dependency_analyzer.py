@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from orchestrator.file_locks import PathOutsideWorkspaceError, normalize_file
 
@@ -92,7 +93,7 @@ class DependencyAnalyzer:
                     data = json.loads(p.read_text(encoding="utf-8"))
                     policy_version = str(data.get("version") or policy_version)
                     mcp_parallel_safe = bool(data.get("mcp_parallel_safe", mcp_parallel_safe))
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     log.warning("Falha ao carregar politica de dependencia em %s: %s", p, exc)
         self.policy_version = policy_version
         self.mcp_parallel_safe = mcp_parallel_safe

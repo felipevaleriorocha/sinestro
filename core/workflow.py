@@ -11,9 +11,10 @@ Permite fluxos dinâmicos, customizados, condicionais e saltos de etapas desnece
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 log = logging.getLogger("core.workflow")
 
@@ -102,7 +103,7 @@ class WorkflowDAG:
         # Detecção de ciclos via ordenação topológica (Algoritmo de Kahn)
         in_degree = {sid: 0 for sid in self.stages}
         for stage in self.stages.values():
-            for dep in stage.depends_on:
+            for _dep in stage.depends_on:
                 in_degree[stage.id] += 1
 
         queue = [sid for sid, deg in in_degree.items() if deg == 0]

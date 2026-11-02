@@ -5,15 +5,11 @@
 - Agregação de custos e métricas de modelos.
 - Endpoints da API (/providers, /metrics/costs, /context/search, /context/index).
 """
-import asyncio
-from pathlib import Path
 
-import pytest
 
 from core.capabilities import CapabilityRegistry, ModelCapability, ModelSpec
 from memory.context_manager import ContextManager
-from memory.decision_store import DecisionStore
-from memory.vector_store import HashedDenseEmbedding, SearchResult, VectorStore, chunk_text
+from memory.vector_store import HashedDenseEmbedding, VectorStore, chunk_text
 from orchestrator.agent_registry import AGENT_DEFINITIONS, AgentRegistry
 from orchestrator.assignment import AssignmentRules, IntelligentRouter, resolve_assignment
 from orchestrator.schemas import AssignmentResponseItem
@@ -180,7 +176,7 @@ def test_cost_summary_and_providers_endpoint(harness, workspace):
         b = build_mock_backends()
         b["deepseek"].responder = impl_writer("deepseek", workspace)
         async with harness(b) as h:
-            d = await start(h)
+            await start(h)
             # Verifica endpoint /providers
             prov_res = await h.client.get("/providers")
             assert prov_res.status_code == 200

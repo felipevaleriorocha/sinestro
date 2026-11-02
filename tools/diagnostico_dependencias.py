@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""Diagnóstico de dependências do jogo (SOMENTE LEITURA, sem modelos, sem rede, sem custo).
 
 Mostra, a partir dos arquivos .lua/.luau do PROJECT_ROOT:
@@ -310,7 +309,7 @@ class Analysis:
         self.studio: dict = {}
 
     # -- varredura
-    def run(self) -> "Analysis":
+    def run(self) -> Analysis:
         self._scan()
         self._parse()
         self._resolve()

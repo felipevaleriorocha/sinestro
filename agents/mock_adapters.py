@@ -8,7 +8,8 @@ from __future__ import annotations
 import json
 import threading
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from agents.base import AgentBackend, AgentCancelledError, AgentHealth, AgentResult, QuotaExceededError
 from core.capabilities import ModelCapability, ModelSpec

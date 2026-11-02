@@ -4,10 +4,11 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from core.logging_setup import redact
 from database.models import backup_before_migration, migrate
@@ -16,7 +17,7 @@ ACTIVE_WORKFLOW_STATES = ("queued", "planning", "running", "delegating", "review
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _dumps(value: Any) -> str | None:
@@ -342,7 +343,7 @@ class Repository:
 
     def get_agent_usage_last_24h(self, agent: str | None = None) -> dict[str, int]:
         """Calcula o total de tokens (input + output) consumidos nas últimas 24 horas por agente."""
-        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        since = (datetime.now(UTC) - timedelta(hours=24)).isoformat()
         sql = "SELECT agent, usage_json FROM agent_runs WHERE created_at >= ?"
         params: list[Any] = [since]
         if agent:
@@ -507,11 +508,11 @@ class Repository:
 
     def prune_inactive_workflows(self, days: int = 30) -> int:
         """Remove workflows cuja última interação (updated_at) ocorreu há mais de `days` dias.
-        
+
         Preserva workflows que tiveram qualquer interação (touch) dentro dos últimos `days` dias.
         Workflows em estados ativos (queued, running, planning, etc.) nunca são expurgados.
         """
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
         with self.connect() as con:
             active_placeholders = ",".join("?" for _ in ACTIVE_WORKFLOW_STATES)
             candidates = con.execute(

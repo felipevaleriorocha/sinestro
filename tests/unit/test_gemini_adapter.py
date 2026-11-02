@@ -5,8 +5,14 @@ import time
 
 import pytest
 
-from agents.base import (AgentAuthError, AgentResponseError, AgentTimeoutError, AgentUnavailableError, QuotaExceededError,
-                         parse_json_object)
+from agents.base import (
+    AgentAuthError,
+    AgentResponseError,
+    AgentTimeoutError,
+    AgentUnavailableError,
+    QuotaExceededError,
+    parse_json_object,
+)
 from agents.gemini_adapter import GeminiAdapter, parse_agy_output, result_from_payload
 from database.repository import Repository
 from tests.conftest import FAKE_AGY

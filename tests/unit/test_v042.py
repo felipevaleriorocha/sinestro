@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from core.safe_exec import CommandResult
-from orchestrator.checks import ChecksRunner, CheckSpec
+from orchestrator.checks import CheckSpec, ChecksRunner
 from orchestrator.schemas import ImplementationReport, Plan, ReviewResult
 from tests.conftest import ROOT
 

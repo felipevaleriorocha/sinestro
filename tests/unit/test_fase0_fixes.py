@@ -1,12 +1,10 @@
 import json
-import pytest
-from pathlib import Path
-from orchestrator.file_locks import FileLockManager
-from database.repository import Repository
-from communication.a2a_client import A2ADelegationError
+
 from agents.mock_adapters import build_mock_backends, plan_json, symmetric_responder
+from communication.a2a_client import A2ADelegationError
+from database.repository import Repository
+from orchestrator.file_locks import FileLockManager
 from tests.conftest import run
-from orchestrator.task_manager import WF
 
 
 def test_expired_locks_require_reconciliation(make_settings, workspace):

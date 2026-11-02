@@ -4,10 +4,10 @@
 2. Consistência entre app FastAPI, rotas (/health) e orchestrator.task_manager.VERSION.
 3. Middlewares de segurança (CORS e TrustedHost) habilitados e operacionais.
 """
+from agents.mock_adapters import build_mock_backends
 from core.version import __version__
 from orchestrator.task_manager import VERSION
 from tests.conftest import run
-from agents.mock_adapters import build_mock_backends
 
 
 def test_single_version_source_consistency():

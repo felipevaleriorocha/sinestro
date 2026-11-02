@@ -1,13 +1,10 @@
 """Testes das melhorias da Fase 1 (Confiabilidade, Cotas, Retries, Sanitização)."""
-from datetime import datetime, timezone
-import pytest
 
 from agents.base import QuotaCooldown, parse_cooldown_seconds
 from agents.mock_adapters import build_mock_backends
 from communication.a2a_server import RoleAgentExecutor
-from orchestrator.schemas import ImplementationReport, ReviewResult
 from tests.conftest import run
-from tests.unit.test_symmetric_flow import start, writer, task_for
+from tests.unit.test_symmetric_flow import start, task_for, writer
 
 
 def test_parse_cooldown_seconds_various_formats():
@@ -28,16 +25,16 @@ def test_parse_cooldown_seconds_various_formats():
 def test_quota_cooldown_marks_exact_calculated_time(tmp_path):
     state_file = tmp_path / "gemini_state.json"
     qc = QuotaCooldown(state_file, model="gemini-test", default_minutes=60)
-    
+
     # Mensagem com 36h57m
     qc.mark("Quota excedida, reseta em 36h57m")
-    
+
     data = qc._read()
     quota = data.get("quota")
     assert quota is not None
     assert quota["seconds"] == 36 * 3600 + 57 * 60
     assert quota["model"] == "gemini-test"
-    
+
     # Reason deve acusar bloqueio
     assert qc.reason() is not None
     assert "liberado em ~36h" in qc.reason()
@@ -47,11 +44,11 @@ def test_sanitization_prevents_raw_text_leak_in_implementation():
     raw_leaked_thought = "Eu pensei em alterar o arquivo X e acho que você deve usar a função Y..."
     # Quando a resposta do modelo não é JSON válido
     rep, summary = RoleAgentExecutor._structure("implement_task", raw_leaked_thought)
-    
+
     # O summary NÃO deve ser o texto bruto do modelo
     assert raw_leaked_thought not in summary
     assert "não retornou formato JSON estruturado" in summary
-    
+
     # O texto bruto fica isolado em raw_text para auditoria, sem contaminar o prompt seguinte
     assert rep.get("raw_text") == raw_leaked_thought
     assert rep.get("structured") is False
@@ -60,7 +57,7 @@ def test_sanitization_prevents_raw_text_leak_in_implementation():
 def test_sanitization_prevents_raw_text_leak_in_review():
     raw_leaked_review = "Estou divagando sobre o código antes de emitir o veredito..."
     rev, summary = RoleAgentExecutor._structure("review_implementation", raw_leaked_review)
-    
+
     assert raw_leaked_review not in summary
     assert "não retornou formato JSON estruturado" in summary
     assert rev.get("raw_text") == raw_leaked_review

@@ -2,12 +2,11 @@
 
 Modelos simulados; o protocolo A2A (Agent Cards, SendMessage, GetTask) é o do SDK oficial.
 """
-import json
 import sys
 from pathlib import Path
 
-from agents.mock_adapters import DEFAULT_TASK, build_mock_backends, plan_json, review_json, symmetric_responder
-from orchestrator.checks import ChecksRunner, CheckSpec
+from agents.mock_adapters import DEFAULT_TASK, build_mock_backends, review_json, symmetric_responder
+from orchestrator.checks import CheckSpec, ChecksRunner
 from orchestrator.evidence import validate_finding
 from orchestrator.schemas import ReviewFinding
 from tests.conftest import ROOT, run

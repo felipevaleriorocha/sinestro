@@ -11,9 +11,9 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 IS_WINDOWS = os.name == "nt"
 
@@ -50,11 +50,11 @@ def kill_process_tree(proc: subprocess.Popen) -> None:
             subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, timeout=15, check=False)
         else:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-    except Exception:
+    except Exception:  # noqa: BLE001 - encerramento best-effort do processo
         pass
     try:
         proc.kill()
-    except Exception:
+    except Exception:  # noqa: BLE001 - encerramento best-effort do processo
         pass
 
 
@@ -93,7 +93,7 @@ def run_process(
         try:
             out, err = proc.communicate(input=stdin_text)
             result["out"], result["err"] = out, err
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:  # pragma: no cover  # noqa: BLE001
             result["out"], result["err"] = "", str(exc)
 
     t = threading.Thread(target=_communicate, daemon=True)

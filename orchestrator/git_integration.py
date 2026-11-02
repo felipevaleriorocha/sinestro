@@ -39,7 +39,7 @@ class GitInspector:
             return False
         try:
             res = run_git(["rev-parse", "--is-inside-work-tree"], self.root, timeout=15)
-        except Exception:
+        except Exception:  # noqa: BLE001 - fora de repositorio git ou git ausente
             return False
         return res.returncode == 0 and res.stdout.strip() == "true"
 

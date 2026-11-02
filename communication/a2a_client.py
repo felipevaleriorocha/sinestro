@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import httpx
 from a2a.client import A2ACardResolver, Client, ClientConfig, ClientFactory
@@ -14,7 +14,13 @@ from a2a.client.errors import A2AClientError
 from a2a.types import AgentCard, CancelTaskRequest, GetTaskRequest, Task
 
 from communication.messaging import (
-    INTERRUPTED_STATES, TERMINAL_STATES, DelegationResult, build_request, result_from_task, state_name, summarize_payload,
+    INTERRUPTED_STATES,
+    TERMINAL_STATES,
+    DelegationResult,
+    build_request,
+    result_from_task,
+    state_name,
+    summarize_payload,
 )
 from core.logging_setup import redact
 from database.repository import Repository

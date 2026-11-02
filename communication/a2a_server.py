@@ -18,12 +18,26 @@ from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.routes import add_a2a_routes_to_fastapi, create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
-    AgentCapabilities, AgentCard, AgentInterface, AgentProvider, AgentSkill, Message, TaskState,
+    AgentCapabilities,
+    AgentCard,
+    AgentInterface,
+    AgentProvider,
+    AgentSkill,
+    Message,
+    TaskState,
 )
 from a2a.utils.constants import PROTOCOL_VERSION_1_0, TransportProtocol
 from pydantic import ValidationError
 
-from agents.base import READ_ONLY_SKILLS, AgentBackend, AgentCancelledError, AgentError, AgentResponseError, AgentResult, parse_json_object
+from agents.base import (
+    READ_ONLY_SKILLS,
+    AgentBackend,
+    AgentCancelledError,
+    AgentError,
+    AgentResponseError,
+    AgentResult,
+    parse_json_object,
+)
 from communication.messaging import parse_request
 from core.domain import DomainProfile
 from core.logging_setup import redact
