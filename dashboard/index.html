@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>Orquestrador Multiagente</title>
+<title>SINESTRO</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{--bg:#090e1a;--panel:#111827;--raised:#172033;--line:#243049;--text:#e8eef7;--muted:#8a99b0;--blue:#4c8dff;--green:#2fd67b;--warn:#e0a83a;--err:#f06b62;--mono:Cascadia Mono,Consolas,monospace}
@@ -555,7 +555,7 @@ function renderAssistantResponse(d){
 function renderRun(force){
   const d=D; if(!d) return;
   const can=ACTIVE.includes(d.status) || !!d.running, res=RESUME.includes(d.status)&&!d.running&&!can, a=ACT.find(x=>x.agent!=='checagens'&&(!x.workflow_id||x.workflow_id===d.id));
-  document.title=(a&&can?`● ${dn(a.agent)} — `:'')+'Orquestrador Multiagente Roblox';
+  document.title=(a&&can?`● ${dn(a.agent)} — `:'')+'SINESTRO';
   const cancelBtn = $('#cancelGenBtn');
   if(cancelBtn) cancelBtn.style.display = can ? 'inline-flex' : 'none';
   

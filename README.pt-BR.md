@@ -88,7 +88,7 @@ Os agentes simulados (mock) executam o workflow completo, o painel e a API sem m
 
 ```bash
 python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
-cp -n .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia e ORCH_MOCK_AGENTS=true
+cp -n .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia que já exista (crie antes) e ORCH_MOCK_AGENTS=true
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 

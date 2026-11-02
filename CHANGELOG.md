@@ -1,5 +1,12 @@
 # Changelog
 
+## Não lançado
+- **Modo mock pelo `.env`:** `ORCH_MOCK_AGENTS` só era lido do ambiente do shell; agora é lido do `.env` (`Settings.mock_agents`), com teste de regressão.
+- **Painel:** os cards dos agentes usam `minmax(0,1fr)` e não estouram mais a borda direita em telas largas; o título da página passa a ser "SINESTRO".
+- **CI e qualidade:** GitHub Actions (ruff + pytest em Python 3.11 e 3.12), `pyproject.toml`, cobertura com `pytest-cov`; `# noqa: BLE001` justificado nos `except Exception` de borda.
+- **Organização:** `diagnostico_dependencias.py` movido para `tools/`; `.gitignore` unificado; `.env.example` sem caminho pessoal.
+- **Documentação:** quickstart em modo mock, decisões de design, diagrama Mermaid, roadmap alinhado, GIF de demonstração e `docs/DEMO.md`.
+
 ## 0.5.1 — Gestão de Permissões e Aprovação Humana Prévia
 - **Auto-aprovação configurável (`AGY_AUTO_APPROVE_PERMISSIONS`):** Suporte à flag `--dangerously-skip-permissions` no CLI do `agy`. Por padrão (`false`), o agente não executa ações com permissões elevadas sem autorização.
 - **Aprovação Prévia (`requires_approval` / `requires_permission`):** Subtarefas que exigem comandos no sistema ou privilégios de execução são pausadas em `needs_human` antes do início, evitando recusas não interativas.

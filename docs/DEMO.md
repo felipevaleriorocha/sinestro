@@ -18,7 +18,7 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 No `.env`, defina:
 
 ```
-PROJECT_ROOT=C:\caminho\para\uma\pasta\vazia
+PROJECT_ROOT=C:\caminho\para\uma\pasta\vazia   # a pasta precisa existir; crie antes
 ORCH_MOCK_AGENTS=true
 ```
 

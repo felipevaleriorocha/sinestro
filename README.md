@@ -88,7 +88,7 @@ Mock agents let you run the whole workflow, dashboard and API without any model,
 
 ```bash
 python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
-cp -n .env.example .env   # then set PROJECT_ROOT to any empty folder and ORCH_MOCK_AGENTS=true
+cp -n .env.example .env   # then set PROJECT_ROOT to an existing empty folder (create it first) and ORCH_MOCK_AGENTS=true
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 
