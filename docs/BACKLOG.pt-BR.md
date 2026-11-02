@@ -84,3 +84,36 @@ Para onde foram os 544 s: Gemini ≈ 516 s (plano 99 s, implementação do `T3` 
 ### Próximo
 
 Rodar o cenário de failover (cota esgotada no meio da tarefa). Opcionalmente repetir o cenário 1 com uma feature mais difícil e propensa a defeitos, onde a revisão tenha o que encontrar, e com mais 2 repetições.
+
+## Cenário 2: feature mais difícil e propensa a defeitos (2026-11-02, 2 repetições por braço)
+
+O teste sugerido no fim do Cenário 1: cinco módulos Luau com regras de borda precisas (`Money` em centavos inteiros, `Inventory` com limite de pilha e remoção tudo-ou-nada, `Shop` com ordem fixa de verificações, `Cooldown` com limite inclusivo e `Serializer` com validação estrita). A correção é medida por uma **suíte escondida de 46 verificações** executada num interpretador Lua 5.1 (com uma pequena camada de compatibilidade com Luau: `typeof`, `for ... in t` generalizado e atribuição composta). A suíte passa 46/46 na minha implementação de referência e falha exatamente nas verificações esperadas em quatro defeitos injetados. Mesmos modelos e permissões do Cenário 1 (`agy` com `--dangerously-skip-permissions` **somente neste benchmark**).
+
+| Braço | Tempo (execução 1 / 2) | Chamadas | Suíte escondida | Intervenções |
+|---|---|---|---|---|
+| Orquestrador, modo completo | 909 s / 1775 s | 13 / 15 | **36/46 e 36/46** | 1 de 2 (`needs_human`) |
+| `agy` sozinho | 470 s / 426 s | 1 | 46/46 e 46/46 | 0 |
+| OpenCode sozinho | 151 s / 101 s | 1 | 46/46 e 46/46 | 0 |
+
+Tokens: orquestrador 281k / 93k e 562k / 193k de entrada/saída (estimativa de US$ 0,77 e 1,60); `agy` sozinho 142-218k de entrada mais ~0,9-1,5M em cache, ~50k de saída mais ~45k de raciocínio; OpenCode sozinho 236k-540k de entrada (quase tudo cache), 3-11k de saída. A terceira repetição **não foi rodada**: o padrão já estava consistente e ela custaria ~40 minutos e mais ~500k tokens do Gemini; o workflow em andamento foi cancelado ainda no planejamento.
+
+### O que aconteceu
+
+1. **O orquestrador entregou o mesmo defeito duas vezes.** O DeepSeek escreveu `Money.fromString` com o padrão `^%d+(%.%d%d?)?$`; os padrões do Lua e do Luau não suportam `?` depois de um grupo, então o padrão nunca casa e todo valor válido é rejeitado. O `Shop` quebra em cascata (10 das 46 verificações). Os mesmos modelos sozinhos, com a especificação inteira num só prompt, não cometeram esse erro em 4 de 4 execuções.
+2. **A revisão só pegou uma vez.** Execução 1: cinco aprovações e revisão final `passed`, com o defeito no lugar. Execução 2: a revisão final (Gemini) identificou a falha de integração entre `Money` e `Shop`, e o workflow parou em `needs_human`. Revisores leem o código, ninguém o executa, e o `selene` não enxerga um erro de semântica de padrão.
+3. **Sem reparo automático depois de uma revisão final reprovada.** A execução 2 terminou em `needs_human` em vez de devolver o achado ao implementador.
+4. **O tempo é dominado pelas implementações do Gemini**: 385 s na execução 1 e 1311 s em quatro chamadas na execução 2 (uma subtarefa precisou de ciclo de correção). As implementações do DeepSeek levaram de 11 a 25 s cada.
+
+### Lendo contra a regra de decisão
+
+O orquestrador falha em todos os limites: cerca de 11x o tempo do OpenCode sozinho (3x o do `agy`) e 14x as chamadas, qualidade **pior** (36/46 contra 46/46) e autonomia de 50 % (1 de 2 execuções precisou de um humano). A hipótese de que a revisão cruzada agrega valor não foi sustentada aqui: os solos não tinham nada a corrigir, e o orquestrador introduziu um defeito que o estágio de revisão pegou na metade das vezes. São duas repetições de uma feature, então é uma evidência forte para esse tipo de tarefa, não um veredito universal.
+
+### Implicações para o roadmap
+
+- Não investir mais em lógica de orquestração (roteamento, negociação, mais agentes) antes de algo mudar o quadro.
+- Se o projeto continuar, a peça que falta é **execução, não mais leitura**: uma checagem executável (um runtime de Luau rodando testes que o implementador escreve ou que a especificação traz) e um ciclo de correção automático depois de uma revisão final reprovada.
+- Tornar o caminho de um único agente o padrão e escalar para o fluxo completo só em mudanças arriscadas.
+
+### Lições do script de teste (não são bugs do produto)
+
+O `opencode.cmd` passa pelo `cmd.exe`, que corta o prompt na primeira quebra de linha (achatar o texto e evitar os caracteres `" < > | & ^ %`). Os modelos escrevem Luau idiomático (`typeof`, `for k, v in t do`), então um executor Lua 5.1 puro os pontua de forma injusta; use um executor que entenda Luau. A primeira execução do OpenCode no piloto recebeu o prompt truncado e foi descartada.

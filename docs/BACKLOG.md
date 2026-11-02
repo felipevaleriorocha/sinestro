@@ -84,3 +84,36 @@ Where the 544 s went: Gemini ≈ 516 s (plan 99 s, `T3` implementation 243 s + 6
 ### Next
 
 Run the failover scenario (quota exhausted mid-task). Optionally repeat scenario 1 with a harder, defect-prone feature, where the review stage has something to find, and with 2 more repetitions.
+
+## Scenario 2: a harder, defect-prone feature (2026-11-02, 2 repetitions per arm)
+
+The test suggested at the end of Scenario 1: five Luau modules with precise edge-case rules (`Money` in integer cents, `Inventory` with stack limits and all-or-nothing removal, `Shop` with a fixed check order, `Cooldown` with an inclusive boundary, `Serializer` with strict validation). Correctness is measured by a **hidden suite of 46 checks** run in a Lua 5.1 interpreter (with a small Luau compatibility layer: `typeof`, generalized `for ... in t`, compound assignment). The suite passes 46/46 on my reference implementation and fails exactly the expected checks on four injected defects. Same models and permissions as Scenario 1 (`agy` with `--dangerously-skip-permissions` **only for this benchmark**).
+
+| Arm | Wall time (run 1 / run 2) | Calls | Hidden suite | Interventions |
+|---|---|---|---|---|
+| Orchestrator, full mode | 909 s / 1775 s | 13 / 15 | **36/46 and 36/46** | 1 of 2 (`needs_human`) |
+| `agy` alone | 470 s / 426 s | 1 | 46/46 and 46/46 | 0 |
+| OpenCode alone | 151 s / 101 s | 1 | 46/46 and 46/46 | 0 |
+
+Tokens: orchestrator 281k / 93k and 562k / 193k in/out (estimated US$ 0.77 and 1.60); `agy` alone 142-218k in plus ~0.9-1.5M cached, ~50k out plus ~45k thinking; OpenCode alone 236k-540k in (mostly cache), 3-11k out. The third repetition was **not run**: the pattern was already consistent and it would have cost ~40 minutes and another ~500k Gemini tokens; the in-flight workflow was cancelled during planning.
+
+### What happened
+
+1. **The orchestrator shipped the same defect twice.** DeepSeek wrote `Money.fromString` with the pattern `^%d+(%.%d%d?)?$`; Lua and Luau patterns do not support `?` after a group, so the pattern never matches and every valid amount is rejected. `Shop` breaks in cascade (10 of 46 checks). The same models alone, with the whole specification in one prompt, did not make this mistake in 4 of 4 runs.
+2. **Review caught it only once.** Run 1: five approvals and a final review `passed`, with the defect in place. Run 2: the final review (Gemini) identified the `Money`/`Shop` integration failure, and the workflow stopped in `needs_human`. Reviewers read code, nobody executes it, and `selene` cannot see a pattern-semantics error.
+3. **No automatic repair after a failed final review.** Run 2 ended in `needs_human` instead of sending the finding back to the implementer.
+4. **Time is dominated by Gemini implementations**: 385 s in run 1 and 1311 s over four calls in run 2 (one subtask needed a correction cycle). DeepSeek implementations took 11-25 s each.
+
+### Reading against the decision rule
+
+The orchestrator misses every threshold: about 11x the time of OpenCode alone (3x that of `agy`) and 14x the calls, **worse** quality (36/46 vs 46/46), and autonomy 50 % (1 of 2 runs needed a human). The hypothesis that cross-review adds value was not supported here: the solos had nothing to fix, and the orchestrator introduced a defect that its review stage caught half of the time. This is two repetitions of one feature, so it is strong evidence for this kind of task, not a universal verdict.
+
+### Implications for the roadmap
+
+- Do not invest further in orchestration logic (routing, negotiation, more agents) before something else changes the picture.
+- If the project keeps going, the missing piece is **execution, not more reading**: an executable check (a Luau runtime running tests the implementer writes or the spec provides) and an automatic fix loop after a failed final review.
+- Make the single-agent path the default, and escalate to the full flow only for risky changes.
+
+### Harness lessons (not product bugs)
+
+`opencode.cmd` goes through `cmd.exe`, which truncates the prompt at the first newline (flatten it, avoid the characters `" < > | & ^ %`). Models write idiomatic Luau (`typeof`, `for k, v in t do`), so a plain Lua 5.1 runner scores them unfairly; use a Luau-aware runner. The first OpenCode run of the pilot received a truncated prompt and was discarded.
