@@ -89,8 +89,8 @@ If all subtasks were implemented by one agent, the other agent takes responsibil
 Mock agents let you run the whole workflow, dashboard and API without any model, token or external CLI. Nothing in this mode is a real integration.
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Windows: .venv\Scripts\pip
-cp .env.example .env   # then set PROJECT_ROOT to any empty folder and ORCH_MOCK_AGENTS=true
+python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
+cp -n .env.example .env   # then set PROJECT_ROOT to any empty folder and ORCH_MOCK_AGENTS=true
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 
@@ -108,7 +108,7 @@ See [docs/DEMO.md](docs/DEMO.md) for a guided walkthrough.
 ```bash
 git clone <repository-url> sinestro
 cd sinestro
-cp .env.example .env  # Set PROJECT_ROOT and the required credentials
+cp -n .env.example .env  # Set PROJECT_ROOT and the required credentials
 ```
 
 On Windows (PowerShell):

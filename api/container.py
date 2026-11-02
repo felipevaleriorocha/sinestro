@@ -74,7 +74,7 @@ def build_container(
     providers: dict[str, Provider] = {}
 
     if backends is None:
-        if os.getenv("ORCH_MOCK_AGENTS", "").lower() in {"1", "true", "yes", "sim"}:
+        if settings.mock_agents:
             from agents.mock_adapters import build_mock_backends
             mock_backends = build_mock_backends(delay=1.0)
             backends = mock_backends
