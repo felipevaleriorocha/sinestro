@@ -7,7 +7,7 @@
 - **Modo mock pelo `.env`:** `ORCH_MOCK_AGENTS` só era lido do ambiente do shell; agora é lido do `.env` (`Settings.mock_agents`), com teste de regressão.
 - **Painel:** os cards dos agentes usam `minmax(0,1fr)` e não estouram mais a borda direita em telas largas; o nome do modelo aparece inteiro; o título da página passa a ser "SINESTRO".
 - **CI e qualidade:** GitHub Actions (ruff + pytest em Python 3.11 e 3.12), `pyproject.toml`, cobertura com `pytest-cov`; `# noqa: BLE001` justificado nos `except Exception` de borda.
-- **Organização:** `diagnostico_dependencias.py` movido para `tools/`; `.gitignore` unificado; `.env.example` sem caminho pessoal.
+- **Organização:** `orchestrator/coordinator.py` dividido em mixins `final_review.py` (revisão final) e `reporting.py` (métricas/resultado) mais `codes.py`, sem mudança de comportamento; `diagnostico_dependencias.py` movido para `tools/`; `.gitignore` unificado; `.env.example` sem caminho pessoal.
 - **Documentação:** quickstart em modo mock, decisões de design, diagrama Mermaid, roadmap alinhado, GIF de demonstração, `docs/DEMO.md`, referência dos scripts de inicialização e documentação em inglês como principal, com versões `*.pt-BR.md`.
 
 ## 0.5.1 — Gestão de Permissões e Aprovação Humana Prévia
