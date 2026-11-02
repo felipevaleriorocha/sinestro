@@ -53,3 +53,6 @@ dashboard/index.backup-*.html
 aplicar_v*.py
 integrar_front*.py
 index_novo*.html
+
+# Configuracao local do Claude Code
+.claude/settings.local.json
