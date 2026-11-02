@@ -1,5 +1,7 @@
 # Plano de Evolução Arquitetural: Workspace Multi-Provider
 
+[English](ARCHITECTURE.md)
+
 ## Visão do Produto
 O objetivo de longo prazo é transformar o orquestrador (atualmente focado em Roblox) num **Workspace Centralizado de IA Multiagente e Multi-Provider**. 
 O sistema será capaz de receber uma solicitação, identificar o domínio (Roblox, Web Dev, Data Science, etc.), selecionar os modelos/provedores mais adequados (OpenAI, Anthropic, Google, DeepSeek) e gerir a execução, validação e entrega num único ambiente, eliminando a fragmentação do trabalho com IA.

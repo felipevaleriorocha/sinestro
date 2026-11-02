@@ -1,10 +1,12 @@
-# Demo guiada (modo mock)
+# Guided demo (mock mode)
 
-Roteiro de ~45 segundos para mostrar o SINESTRO funcionando sem `agy`, OpenCode ou tokens. Serve tanto para explorar o projeto quanto para gravar o GIF do README.
+[Português (Brasil)](DEMO.pt-BR.md)
 
-> Nada neste modo é integração real: os agentes são simulados (`agents/mock_adapters.py`). O que a demo mostra é o **fluxo de orquestração** (plano, DAG, atribuição, revisão cruzada, revisão final).
+A ~45-second walkthrough that shows SINESTRO working without `agy`, OpenCode or tokens. Use it to explore the project or to record the README GIF.
 
-## 1. Preparar
+> Nothing in this mode is a real integration: the agents are simulated (`agents/mock_adapters.py`). The demo shows the **orchestration flow** (plan, DAG, assignment, cross-review, final review).
+
+## 1. Prepare
 
 ```powershell
 if (!(Test-Path .venv)) { py -3 -m venv .venv }
@@ -12,41 +14,43 @@ if (!(Test-Path .venv)) { py -3 -m venv .venv }
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-> Use `python -m pip` em vez de `pip.exe`: se a pasta do projeto foi copiada de outro lugar, o launcher `pip.exe` do `.venv` continua apontando para o caminho antigo e falha com "Fatal error in launcher". Se isso acontecer, apague o `.venv` (com o servidor parado) e recrie.
-> O `if (!(Test-Path .env))` evita sobrescrever um `.env` que você já tenha configurado.
+> Use `python -m pip` instead of `pip.exe`: if the project folder was copied from somewhere else, the `pip.exe` launcher inside `.venv` still points to the old path and fails with "Fatal error in launcher". If that happens, delete `.venv` (with the server stopped) and recreate it.
+> The `if (!(Test-Path .env))` guard avoids overwriting an `.env` you already configured.
 
-No `.env`, defina:
+In `.env`, set:
 
 ```
-PROJECT_ROOT=C:\caminho\para\uma\pasta\vazia   # a pasta precisa existir; crie antes
+PROJECT_ROOT=C:\path\to\an\empty\folder   # the folder must already exist; create it first
 ORCH_MOCK_AGENTS=true
 ```
 
-## 2. Subir
+## 2. Start
 
 ```powershell
 .\.venv\Scripts\python run_server.py
 ```
 
-- Painel: <http://127.0.0.1:8787/dashboard/>
+- Dashboard: <http://127.0.0.1:8787/dashboard/>
 - API: <http://127.0.0.1:8787/docs>
 
-## 3. Enviar uma tarefa
+The log should print `mock=True`. If it prints `mock=False`, stop the server (`Ctrl+C`) and check the `.env`.
 
-Pelo painel, ou:
+## 3. Submit a task
+
+From the dashboard, or:
 
 ```powershell
-curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" -d "{\"goal\": \"Criar um modulo hello-world\", \"mode\": \"full\"}"
+curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" -d "{\"goal\": \"Create a hello-world module\", \"mode\": \"full\"}"
 ```
 
-## 4. O que mostrar no GIF (sugestão de roteiro)
+## 4. What to show in the GIF (suggested script)
 
-1. **0-5 s:** painel vazio com os cards dos dois agentes.
-2. **5-15 s:** enviar o objetivo; aparece o plano com subtarefas.
-3. **15-30 s:** DAG e atribuição; mostrar que quem implementa não é quem revisa.
-4. **30-40 s:** revisão cruzada e checagens automáticas.
-5. **40-45 s:** `final_review_state: passed` e status `completed`.
+1. **0-5 s:** empty dashboard with both agent cards.
+2. **5-15 s:** submit the goal; the plan appears with its subtasks.
+3. **15-30 s:** DAG and assignment; show that whoever implements does not review.
+4. **30-40 s:** cross-review and automated checks.
+5. **40-45 s:** `final_review_state: passed` and status `completed`.
 
-## 5. Gravar
+## 5. Record
 
-Ferramentas gratuitas: [ScreenToGif](https://www.screentogif.com/) (Windows) ou [LICEcap](https://www.cockos.com/licecap/). Salve em `docs/media/demo.gif` (mantenha abaixo de ~5 MB) (já referenciado no topo dos READMEs).
+Free tools: [ScreenToGif](https://www.screentogif.com/) (Windows) or [LICEcap](https://www.cockos.com/licecap/). Save it as `docs/media/demo.gif` (keep it under ~5 MB); it is already referenced at the top of the READMEs.

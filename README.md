@@ -1,6 +1,6 @@
 # SINESTRO
 
-[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.1-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.2-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
@@ -21,7 +21,7 @@ SINESTRO is a **local, autonomous multi-agent orchestrator** for coordinating so
 
 Models and providers are configured declaratively through environment variables (`.env`). The orchestration core is not intended to be permanently tied to a specific model.
 
-**Current version:** `0.5.1` · **SQLite schema:** `7`
+**Current version:** `0.5.2` · **SQLite schema:** `7`
 
 The current implementation includes static dependency analysis through the **Dependency Analyzer**, deterministic execution that is sequential by default (`PARALLEL_EXECUTION=false`), stage tracking through `stage_log`, and resource/tool isolation support through the **Model Context Protocol (MCP)**.
 
@@ -223,7 +223,7 @@ Run an end-to-end operational test with real models (uses quota; run in an isola
 - **Automated checks outrank opinions.** Linters and tests run before any LLM review, and a verifiable check beats a reviewer's claim.
 - **Locks fail closed.** If an external process cannot be confirmed as terminated, its reservation is retained (`expired_retained`) instead of released.
 - **Loopback only.** The service binds to `127.0.0.1` and refuses any other `ORCH_HOST`.
-- **Passive domains.** Domain rules (e.g. Roblox/Luau) live in a `DomainProfile`; the core stays domain-agnostic. See [docs/PLANO_ARQUITETURA.md](docs/PLANO_ARQUITETURA.md) (written in Portuguese).
+- **Passive domains.** Domain rules (e.g. Roblox/Luau) live in a `DomainProfile`; the core stays domain-agnostic. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Roadmap
 

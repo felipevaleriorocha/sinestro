@@ -1,6 +1,6 @@
 # SINESTRO
 
-[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)](#roadmap) [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.5.1-blue)](#) [![Licença: MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)](#roadmap) [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.5.2-blue)](#) [![Licença: MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-yellow.svg)](LICENSE)
 
 [English](README.md) | **Português (Brasil)**
 
@@ -21,7 +21,7 @@ O SINESTRO é um **orquestrador multiagente local e autônomo** para coordenar f
 
 Modelos e provedores são configurados declarativamente por variáveis de ambiente (`.env`). O núcleo de orquestração não deve permanecer permanentemente acoplado a um modelo específico.
 
-**Versão atual:** `0.5.1` · **Schema SQLite:** `7`
+**Versão atual:** `0.5.2` · **Schema SQLite:** `7`
 
 A implementação atual inclui análise estática de dependências por meio do **Dependency Analyzer**, execução determinística e sequencial por padrão (`PARALLEL_EXECUTION=false`), rastreabilidade de etapas por `stage_log` e suporte ao isolamento de recursos e ferramentas externas via **Model Context Protocol (MCP)**.
 
@@ -99,7 +99,7 @@ curl -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" \
      -d '{"goal": "Criar um módulo hello-world", "mode": "full"}'
 ```
 
-Veja [docs/DEMO.md](docs/DEMO.md) para um roteiro guiado.
+Veja [docs/DEMO.pt-BR.md](docs/DEMO.pt-BR.md) para um roteiro guiado.
 
 ## Instalação e inicialização
 
@@ -223,7 +223,7 @@ Execute um teste operacional ponta a ponta com modelos reais (consome cota; util
 - **Checagens automáticas valem mais que opiniões.** Linters e testes rodam antes de qualquer revisão por LLM, e uma checagem verificável vence a alegação de um revisor.
 - **Locks falham de forma segura.** Se não for possível confirmar o encerramento de um processo externo, a reserva é retida (`expired_retained`) em vez de liberada.
 - **Somente loopback.** O serviço escuta em `127.0.0.1` e recusa qualquer outro `ORCH_HOST`.
-- **Domínios passivos.** As regras de domínio (ex.: Roblox/Luau) ficam em um `DomainProfile`; o núcleo permanece agnóstico. Veja [docs/PLANO_ARQUITETURA.md](docs/PLANO_ARQUITETURA.md).
+- **Domínios passivos.** As regras de domínio (ex.: Roblox/Luau) ficam em um `DomainProfile`; o núcleo permanece agnóstico. Veja [docs/ARCHITECTURE.pt-BR.md](docs/ARCHITECTURE.pt-BR.md).
 
 ## Roadmap
 

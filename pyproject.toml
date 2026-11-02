@@ -1,6 +1,6 @@
 [project]
 name = "sinestro"
-version = "0.5.1"
+version = "0.5.2"
 description = "Local multi-agent orchestrator with A2A, cross-review and deterministic task DAG validation."
 requires-python = ">=3.11"
 license = { text = "MIT" }

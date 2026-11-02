@@ -12,7 +12,7 @@ from tests.conftest import run
 
 def test_single_version_source_consistency():
     """Garante que a versão é unificada e consistente em todo o sistema."""
-    assert __version__ == "0.5.1"
+    assert __version__ == "0.5.2"
     assert VERSION == __version__
 
 
