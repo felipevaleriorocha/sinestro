@@ -5,7 +5,7 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -415,4 +415,101 @@ class Repository:
         params.append(limit)
         with self.connect() as con:
             return [dict(r) for r in con.execute(sql, params).fetchall()]
+
+    # ------------------------------------------------------------------ routing & retention (fase 4)
+    def record_subtask_outcome(
+        self,
+        agent: str,
+        category: str,
+        first_pass: bool,
+        review_cycles: int,
+        duration_seconds: float,
+    ) -> None:
+        """Registra o desfecho de uma subtarefa no placar consolidado de roteamento."""
+        cat = (category or "other").lower().strip()
+        now = utc_now()
+        with self.connect() as con:
+            con.execute(
+                """INSERT INTO routing_stats(
+                    agent, category, samples_count, first_pass_count,
+                    total_review_cycles, total_duration_seconds, last_interaction_at
+                ) VALUES(?, ?, 1, ?, ?, ?, ?)
+                ON CONFLICT(agent, category) DO UPDATE SET
+                    samples_count = routing_stats.samples_count + 1,
+                    first_pass_count = routing_stats.first_pass_count + excluded.first_pass_count,
+                    total_review_cycles = routing_stats.total_review_cycles + excluded.total_review_cycles,
+                    total_duration_seconds = routing_stats.total_duration_seconds + excluded.total_duration_seconds,
+                    last_interaction_at = excluded.last_interaction_at""",
+                (
+                    agent.lower().strip(),
+                    cat,
+                    1 if first_pass else 0,
+                    max(0, int(review_cycles)),
+                    max(0.0, float(duration_seconds)),
+                    now,
+                ),
+            )
+
+    def get_routing_stats(self, category: str | None = None, agent: str | None = None) -> list[dict]:
+        """Consulta as estatísticas agregadas de desempenho por agente e categoria."""
+        sql = """SELECT agent, category, samples_count, first_pass_count, total_review_cycles,
+                        total_duration_seconds, last_interaction_at FROM routing_stats WHERE 1=1"""
+        params: list[Any] = []
+        if category:
+            sql += " AND category = ?"
+            params.append(category.lower().strip())
+        if agent:
+            sql += " AND agent = ?"
+            params.append(agent.lower().strip())
+        sql += " ORDER BY samples_count DESC, first_pass_count DESC"
+        with self.connect() as con:
+            rows = con.execute(sql, params).fetchall()
+            out = []
+            for r in rows:
+                samples = r["samples_count"] or 1
+                out.append({
+                    "agent": r["agent"],
+                    "category": r["category"],
+                    "samples_count": r["samples_count"],
+                    "first_pass_count": r["first_pass_count"],
+                    "first_pass_rate": round(r["first_pass_count"] / samples, 3),
+                    "avg_review_cycles": round(r["total_review_cycles"] / samples, 2),
+                    "avg_duration_seconds": round(r["total_duration_seconds"] / samples, 2),
+                    "last_interaction_at": r["last_interaction_at"],
+                })
+            return out
+
+    def touch_workflow(self, workflow_id: str) -> None:
+        """Atualiza updated_at do workflow, renovando sua janela de 30 dias de retenção."""
+        now = utc_now()
+        with self.connect() as con:
+            con.execute("UPDATE tasks SET updated_at=? WHERE id=?", (now, workflow_id))
+
+    def prune_inactive_workflows(self, days: int = 30) -> int:
+        """Remove workflows cuja última interação (updated_at) ocorreu há mais de `days` dias.
+        
+        Preserva workflows que tiveram qualquer interação (touch) dentro dos últimos `days` dias.
+        Workflows em estados ativos (queued, running, planning, etc.) nunca são expurgados.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        with self.connect() as con:
+            active_placeholders = ",".join("?" for _ in ACTIVE_WORKFLOW_STATES)
+            candidates = con.execute(
+                f"SELECT id FROM tasks WHERE updated_at < ? AND status NOT IN ({active_placeholders})",
+                [cutoff, *ACTIVE_WORKFLOW_STATES],
+            ).fetchall()
+            if not candidates:
+                return 0
+            wf_ids = [r["id"] for r in candidates]
+            id_placeholders = ",".join("?" for _ in wf_ids)
+
+            con.execute(f"DELETE FROM task_events WHERE task_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM agent_messages WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM agent_runs WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM stage_log WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM file_changes WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM subtasks WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM decisions WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            con.execute(f"DELETE FROM tasks WHERE id IN ({id_placeholders})", wf_ids)
+            return len(wf_ids)
 

@@ -25,8 +25,11 @@ def other(agent: str) -> str:
     return "deepseek" if agent == "gemini" else "gemini"
 
 
+MIN_DATA_DRIVEN_SAMPLES = 5
+
+
 class IntelligentRouter:
-    """Roteador inteligente ciente de capacidades de modelos e otimização de custo."""
+    """Roteador inteligente ciente de dados reais de execução, capacidades de modelos e otimização de custo."""
 
     HIGH_REASONING_CATEGORIES = {"architecture", "security", "core", "complex_logic", "planning"}
     COST_EFFICIENT_CATEGORIES = {"asset", "assets", "boilerplate", "docs", "ui", "refactor", "tests"}
@@ -38,12 +41,39 @@ class IntelligentRouter:
         files: list[str] | None = None,
         registry: Any | None = None,
         default_agent: str = "gemini",
+        repo: Any | None = None,
     ) -> tuple[str, str]:
-        """Seleciona o melhor agente com base em capacidades e rácio custo/eficiência."""
+        """Seleciona o melhor agente com base em dados empíricos de execução, capacidades e custo."""
+        cat = (category or "").lower()
+
+        # 1. Roteamento Orientado a Dados (Fase 4): decide por desempenho real se houver amostras
+        if repo and hasattr(repo, "get_routing_stats"):
+            try:
+                stats = repo.get_routing_stats(category=cat)
+                candidates_scores = []
+                for s in stats:
+                    name = s["agent"]
+                    if registry:
+                        ok, _ = registry.can_accept(name)
+                        if not ok:
+                            continue
+                    if s.get("samples_count", 0) >= MIN_DATA_DRIVEN_SAMPLES:
+                        fp_rate = s.get("first_pass_rate", 0.0)
+                        cycle_score = 1.0 / (1.0 + s.get("avg_review_cycles", 0.0))
+                        speed_score = 1.0 / (1.0 + (s.get("avg_duration_seconds", 0.0) / 60.0))
+                        total_score = 0.55 * fp_rate + 0.25 * cycle_score + 0.20 * speed_score
+                        candidates_scores.append((name, total_score, fp_rate, s.get("avg_review_cycles", 0.0), s["samples_count"]))
+
+                if candidates_scores:
+                    candidates_scores.sort(key=lambda x: x[1], reverse=True)
+                    best_name, best_score, fp, cycles, n = candidates_scores[0]
+                    return best_name, f"data_driven:{cat} (sucesso={fp:.0%}, ciclos={cycles:.1f}, n={n})"
+            except Exception as e:
+                log.warning("Falha ao consultar estatísticas de roteamento: %s", e)
+
         if not registry:
             return default_agent, "default_agent"
 
-        cat = (category or "").lower()
         cap_reg: CapabilityRegistry | None = getattr(registry, "capability_registry", None)
 
         # Categorias de alto raciocínio exigem ModelCapability.REASONING
@@ -133,7 +163,7 @@ class AssignmentRules:
                                                        for i in range(1, path.count("/") + 1))
         return False
 
-    def decide(self, category: str, files: list[str], registry: Any | None = None) -> tuple[str, str]:
+    def decide(self, category: str, files: list[str], registry: Any | None = None, repo: Any | None = None) -> tuple[str, str]:
         """Retorna (agente, regra aplicada)."""
         cat = (category or "").lower()
         if cat in self.categories:
@@ -142,14 +172,14 @@ class AssignmentRules:
             for f in files or []:
                 if self._match(f, rule["pattern"]):
                     return str(rule["agent"]).lower(), f"path:{rule['pattern']}"
-        if registry:
-            return IntelligentRouter.route(cat, files, registry, self.default_agent)
+        if registry or repo:
+            return IntelligentRouter.route(cat, files, registry, self.default_agent, repo=repo)
         return self.default_agent, "default_agent"
 
 
 def resolve_assignment(task: dict, proposed_by: str, response: AssignmentResponseItem | None, responder: str | None,
                        rules: AssignmentRules, gemini_unavailable_reason: str | None,
-                       registry: Any | None = None) -> AssignmentDecision:
+                       registry: Any | None = None, repo: Any | None = None) -> AssignmentDecision:
     """Decisão final de uma subtarefa. No máximo 2 turnos (proposta + resposta); o desempate é por regras/roteamento inteligente."""
     proposed = task.get("assigned_to") or task.get("agent") or "deepseek"
     base = {"task_id": task.get("id", ""), "proposed_by": proposed_by, "proposed_to": proposed,
@@ -162,8 +192,8 @@ def resolve_assignment(task: dict, proposed_by: str, response: AssignmentRespons
         assigned, decided_by, rule, reason = proposed, "consensus", "", "Proposta aceita."
         base["response"] = "accept"
     else:
-        assigned, rule = rules.decide(task.get("category", "other"), task.get("files", []), registry=registry)
-        decided_by = "rules" if ("category:" in rule or "path:" in rule or "default" in rule) else "intelligent_routing"
+        assigned, rule = rules.decide(task.get("category", "other"), task.get("files", []), registry=registry, repo=repo)
+        decided_by = "rules" if ("category:" in rule or "path:" in rule or "default" in rule) else ("data_driven" if "data_driven:" in rule else "intelligent_routing")
         reason = f"Contestação de {responder}; desempate por {rule} -> {assigned}."
         base.update(response="counter", counter_reason=response.reason)
     if assigned == "gemini" and gemini_unavailable_reason:

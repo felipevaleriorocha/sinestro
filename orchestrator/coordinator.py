@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -88,10 +89,18 @@ class Coordinator:
         self._workflow_gate = asyncio.Semaphore(1)  # workflows serializados (atribuição de mudanças via Git fica confiável)
         self.workflow_engine = WorkflowEngine()
 
+        # Fase 4: limpeza de workflows inativos (> 30 dias de inatividade ou s.retention_days)
+        try:
+            retention_days = getattr(self.s, "retention_days", 30)
+            self.repo.prune_inactive_workflows(days=retention_days)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Falha ao podar workflows inativos na inicialização: %s", exc)
+
     # ================================================================ API pública
     def start(self, wf_id: str, resume: bool = False) -> None:
         if wf_id in self._running and not self._running[wf_id].done():
             raise RuntimeError("Workflow já está em execução.")
+        self.repo.touch_workflow(wf_id)
         self._running[wf_id] = asyncio.create_task(self._run_guarded(wf_id, resume), name=f"wf-{wf_id}")
 
     def is_running(self, wf_id: str) -> bool:
@@ -99,6 +108,7 @@ class Coordinator:
         return bool(t and not t.done())
 
     async def cancel(self, wf_id: str) -> None:
+        self.repo.touch_workflow(wf_id)
         self.tasks.request_cancel(wf_id)
         self.tasks.event(wf_id, "orchestrator", "workflow_canceled_by_user", "Cancelamento solicitado pelo usuário.", "warning")
 
@@ -428,7 +438,7 @@ class Coordinator:
             item = responses.get(s["plan_id"]) if responses is not None else None
             decision = resolve_assignment(spec, planner, item, responder if responses is not None else None,
                                           self.rules, None if gemini_ok else gemini_reason,
-                                          registry=self.registry)
+                                          registry=self.registry, repo=self.repo)
             self._apply_assignment(wf_id, s["id"], decision)
 
     def _apply_assignment(self, wf_id: str, sid: str, decision: AssignmentDecision) -> None:
@@ -598,6 +608,7 @@ class Coordinator:
         stage_id = self.repo.start_stage(wf_id, "subtask", subtask_id=sid, agent=implementer,
                                          execution_group=sub.get("execution_group"),
                                          detail={"files": files, "resources": explicit_resources})
+        t0 = time.time()
         try:
             await self._cycle(wf_id, goal, self.repo.get_subtask(sid), implementer, reviewer, files, reserved, mcp_status,
                               previous, review_only)
@@ -615,6 +626,20 @@ class Coordinator:
             self.repo.finish_stage(stage_id, st_status)
             if not (final_sub and final_sub.get("error") and "timeout" in str(final_sub.get("error")).lower()):
                 self.locks.release(resources, implementer, sid)
+
+            # Fase 4: registra métricas de desfecho para roteamento e renova retenção do workflow
+            try:
+                if final_sub and st_status in ST.FINAL:
+                    spec = dict(final_sub.get("spec") or {})
+                    category = spec.get("category") or "other"
+                    cycles = int(final_sub.get("review_cycles") or 0)
+                    fixes = int(final_sub.get("check_fix_attempts") or 0)
+                    first_pass = (st_status in (ST.APPROVED, ST.COMPLETED) and cycles == 0 and fixes == 0)
+                    duration = max(0.0, time.time() - t0)
+                    self.repo.record_subtask_outcome(implementer, category, first_pass, cycles, duration)
+                self.repo.touch_workflow(wf_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Falha ao registrar métricas de roteamento da subtarefa %s: %s", sid, exc)
 
     # ---------------------------------------------------------------- ciclo da subtarefa
     async def _cycle(self, wf_id, goal, sub, implementer, reviewer, files, reserved, mcp_status, previous, review_only) -> None:

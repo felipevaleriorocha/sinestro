@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 BASE_TABLES = [
     # --- v0.2 (preservadas) ---
@@ -179,6 +179,8 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_msgs_wf ON agent_messages(workflow_id)",
     "CREATE INDEX IF NOT EXISTS ix_runs_agent ON agent_runs(agent)",
     "CREATE INDEX IF NOT EXISTS ix_changes_wf ON file_changes(workflow_id)",
+    "CREATE INDEX IF NOT EXISTS ix_routing_stats_agent_cat ON routing_stats(agent, category)",
+    "CREATE INDEX IF NOT EXISTS ix_tasks_updated ON tasks(updated_at)",
 ]
 
 
@@ -208,6 +210,17 @@ STAGE_TABLE = """CREATE TABLE IF NOT EXISTS stage_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, workflow_id TEXT NOT NULL, subtask_id TEXT,
     execution_group INTEGER, stage TEXT NOT NULL, agent TEXT, status TEXT NOT NULL,
     started_at TEXT NOT NULL, finished_at TEXT, detail_json TEXT
+)"""
+ROUTING_STATS_TABLE = """CREATE TABLE IF NOT EXISTS routing_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent TEXT NOT NULL,
+    category TEXT NOT NULL,
+    samples_count INTEGER NOT NULL DEFAULT 0,
+    first_pass_count INTEGER NOT NULL DEFAULT 0,
+    total_review_cycles INTEGER NOT NULL DEFAULT 0,
+    total_duration_seconds REAL NOT NULL DEFAULT 0.0,
+    last_interaction_at TEXT NOT NULL,
+    UNIQUE(agent, category)
 )"""
 
 
@@ -266,6 +279,7 @@ def migrate(con: sqlite3.Connection) -> None:
     _add_columns(con, ADDED_COLUMNS_V6)
     con.execute(STAGE_TABLE)
     con.execute("CREATE INDEX IF NOT EXISTS ix_stage_wf ON stage_log(workflow_id)")
+    con.execute(ROUTING_STATS_TABLE)
     # Linhas antigas: quem implementou era `agent`. Revisor fica NULL (não inventamos histórico).
     con.execute("UPDATE subtasks SET assigned_to=agent WHERE assigned_to IS NULL")
     for ddl in INDEXES:

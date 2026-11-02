@@ -130,6 +130,7 @@ async def cancel_task(task_id: str, request: Request) -> dict:
         raise HTTPException(404, "Tarefa não encontrada.")
     if wf["status"] in {WF.COMPLETED, WF.CANCELED}:
         raise HTTPException(409, f"Tarefa já finalizada (status {wf['status']}).")
+    c.repo.touch_workflow(task_id)
     await c.coordinator.cancel(task_id)
     return {"id": task_id, "cancel_requested": True}
 
@@ -146,6 +147,7 @@ async def resume_task(task_id: str, request: Request) -> dict:
     if pending:
         raise HTTPException(409, {"detail": "Há subtarefas aguardando decisão humana. Use POST /tasks/{id}/subtasks/{sid}/decision.",
                                   "subtasks": pending})
+    c.repo.touch_workflow(task_id)
     if wf["status"] == WF.PLANNED:
         c.repo.update_workflow(task_id, status=WF.QUEUED, mode="full")
     c.coordinator.start(task_id, resume=True)
@@ -163,6 +165,7 @@ def human_decision(task_id: str, subtask_id: str, body: HumanDecision, request: 
         raise HTTPException(409, f"Subtarefa não aguarda decisão (status {sub['status']}).")
     if c.coordinator.is_running(task_id):
         raise HTTPException(409, "Workflow em execução.")
+    c.repo.touch_workflow(task_id)
     decision = {"action": body.action, "note": body.note, "consumed": False}
     reset = {"review_cycles": 0, "check_fix_attempts": 0, "impl_attempts": 0}
     if body.action == "approve":
@@ -202,6 +205,7 @@ def final_review_decision(task_id: str, body: FinalReviewDecision, request: Requ
     if wf["status"] != WF.NEEDS_HUMAN or wf.get("final_review_state") not in FR.NEEDS_HUMAN:
         raise HTTPException(409, f"Não há parecer de revisão final aguardando decisão (status {wf['status']}, "
                                  f"final_review_state {wf.get('final_review_state')}).")
+    c.repo.touch_workflow(task_id)
     state = FR.ACCEPTED_BY_HUMAN if body.action == "accept" else FR.REJECTED_BY_HUMAN
     fr = dict(wf.get("final_review") or {})
     fr["human_decision"] = {"action": body.action, "note": body.note, "previous_state": wf.get("final_review_state")}
@@ -340,6 +344,26 @@ async def context_index(request: Request, refresh: bool = False) -> dict:
 @router.get("/metrics/costs", tags=["Sistema"])
 def metrics_costs(request: Request, workflow_id: str | None = None) -> dict:
     return C(request).repo.get_cost_summary(workflow_id)
+
+
+@router.get("/metrics/routing-stats", tags=["Sistema"])
+def metrics_routing_stats(
+    request: Request,
+    category: str | None = None,
+    agent: str | None = None,
+) -> list[dict]:
+    """Retorna estatísticas de desempenho empírico para roteamento orientado a dados (Fase 4)."""
+    return C(request).repo.get_routing_stats(category=category, agent=agent)
+
+
+@router.post("/workflows/prune-inactive", tags=["Tarefas"])
+def prune_inactive_workflows(
+    request: Request,
+    days: int = Query(30, ge=1, le=365, description="Dias sem interação para expiração"),
+) -> dict:
+    """Executa limpeza de workflows inativos há mais de X dias desde a última interação (Fase 4)."""
+    pruned = C(request).repo.prune_inactive_workflows(days=days)
+    return {"pruned_count": pruned, "retention_days": days}
 
 
 @router.get("/providers", tags=["Provedores"])

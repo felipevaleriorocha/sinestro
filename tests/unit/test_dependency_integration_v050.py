@@ -39,7 +39,7 @@ def test_schema_6_migrates_and_persists_analysis(make_settings):
     with repo.connect() as con:
         version = con.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()[0]
         cols = {r[1] for r in con.execute("PRAGMA table_info(subtasks)")}
-    assert version == str(SCHEMA_VERSION) == "6"
+    assert version == str(SCHEMA_VERSION) and int(version) >= 6
     assert {"dependency_class", "execution_group", "resources_json", "started_at", "finished_at"} <= cols
 
 
