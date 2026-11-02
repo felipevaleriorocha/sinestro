@@ -45,3 +45,11 @@ desktop.ini
 
 # Configurações locais específicas
 config/mcp_servers.json
+
+# Backups e artefatos locais de scripts de aplicação única
+backup_pre_v042/
+backup_front_v2/
+dashboard/index.backup-*.html
+aplicar_v*.py
+integrar_front*.py
+index_novo*.html

@@ -1,6 +1,6 @@
-"""Ponto de entrada (compatível com `uvicorn app:app` da v0.2).
+"""Ponto de entrada ASGI (`uvicorn app:app`), usado por run_server.py.
 
-A implementação da v0.2 (monolítica) foi modularizada na v0.3; a cópia original está em backup_v0.2/app.py.
+A aplicação é montada por api.main.create_app().
 """
 from api.main import create_app
 
