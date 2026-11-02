@@ -8,6 +8,8 @@
 
 O SINESTRO é um **orquestrador multiagente local e autônomo** para coordenar fluxos de engenharia de software com agentes de IA que planejam, implementam e **revisam o trabalho uns dos outros**. Os agentes se comunicam pelo protocolo **A2A 1.0**, utilizando contratos de dados estruturados e validação determinística, sem depender de conversas livres e desestruturadas.
 
+![Demonstração do painel do SINESTRO](docs/media/demo.gif)
+
 > **Regra central:** quem implementa uma tarefa nunca revisa o próprio trabalho. A revisão cruzada é atribuída a outro agente independente.
 
 ## Implementação atual

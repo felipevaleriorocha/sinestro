@@ -49,4 +49,4 @@ curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json"
 
 ## 5. Gravar
 
-Ferramentas gratuitas: [ScreenToGif](https://www.screentogif.com/) (Windows) ou [LICEcap](https://www.cockos.com/licecap/). Salve em `docs/media/demo.gif` (mantenha abaixo de ~5 MB) e descomente a linha de imagem no topo do `README.md`.
+Ferramentas gratuitas: [ScreenToGif](https://www.screentogif.com/) (Windows) ou [LICEcap](https://www.cockos.com/licecap/). Salve em `docs/media/demo.gif` (mantenha abaixo de ~5 MB) (já referenciado no topo dos READMEs).

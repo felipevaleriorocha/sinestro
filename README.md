@@ -8,9 +8,7 @@
 
 SINESTRO is a **local, autonomous multi-agent orchestrator** for coordinating software engineering workflows with AI agents that plan, implement, and **review one another's work**. Agents communicate through the **A2A 1.0** protocol using structured data contracts and deterministic validation rather than relying on unstructured chat.
 
-<!-- Demo: grave docs/media/demo.gif seguindo docs/DEMO.md e descomente a linha abaixo.
 ![SINESTRO dashboard demo](docs/media/demo.gif)
--->
 
 > **Core rule:** an agent that implements a task must never review its own work. Cross-review is assigned to a different, independent agent.
 
