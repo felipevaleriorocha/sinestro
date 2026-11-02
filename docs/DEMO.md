@@ -7,10 +7,13 @@ Roteiro de ~45 segundos para mostrar o SINESTRO funcionando sem `agy`, OpenCode 
 ## 1. Preparar
 
 ```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
-Copy-Item .env.example .env
+if (!(Test-Path .venv)) { py -3 -m venv .venv }
+.\.venv\Scripts\python -m pip install -r requirements.txt
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
 ```
+
+> Use `python -m pip` em vez de `pip.exe`: se a pasta do projeto foi copiada de outro lugar, o launcher `pip.exe` do `.venv` continua apontando para o caminho antigo e falha com "Fatal error in launcher". Se isso acontecer, apague o `.venv` (com o servidor parado) e recrie.
+> O `if (!(Test-Path .env))` evita sobrescrever um `.env` que você já tenha configurado.
 
 No `.env`, defina:
 
@@ -46,4 +49,4 @@ curl.exe -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json"
 
 ## 5. Gravar
 
-Ferramentas gratuitas: [ScreenToGif](https://www.screentogif.com/) (Windows) ou [LICEcap](https://www.cockos.com/licecap/). Salve em `docs/media/demo.gif` (mantenha abaixo de ~5 MB) e descomente a linha de imagem no topo do `README.md`.
+Ferramentas gratuitas: [ScreenToGif](https://www.screentogif.com/) (Windows) ou [LICEcap](https://www.cockos.com/licecap/). Salve em `docs/media/demo.gif` (mantenha abaixo de ~5 MB) (já referenciado no topo dos READMEs).

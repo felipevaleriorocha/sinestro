@@ -119,6 +119,7 @@ class Settings:
     max_subtasks: int = 5
     max_parallel_subtasks: int = 1
     parallel_execution: bool = False
+    mock_agents: bool = False  # ORCH_MOCK_AGENTS: agentes simulados, sem agy/OpenCode
     parallel_per_agent: int = 1
     dependency_policy_file: Path = BASE_DIR / "config" / "dependency_policy.json"
     allow_agent_fallback: bool = False
@@ -235,6 +236,7 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         max_subtasks=_int(g("MAX_SUBTASKS"), 5, 1),
         max_parallel_subtasks=_int(g("MAX_PARALLEL_SUBTASKS"), 1, 1),
         parallel_execution=_bool(g("PARALLEL_EXECUTION"), False),
+        mock_agents=_bool(g("ORCH_MOCK_AGENTS"), False),
         parallel_per_agent=_int(g("PARALLEL_PER_AGENT"), 1, 1),
         dependency_policy_file=_path(g("DEPENDENCY_POLICY_FILE"), BASE_DIR / "config" / "dependency_policy.json"),
         allow_agent_fallback=_bool(g("ALLOW_AGENT_FALLBACK"), False),

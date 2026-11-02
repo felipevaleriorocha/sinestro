@@ -8,6 +8,8 @@
 
 O SINESTRO é um **orquestrador multiagente local e autônomo** para coordenar fluxos de engenharia de software com agentes de IA que planejam, implementam e **revisam o trabalho uns dos outros**. Os agentes se comunicam pelo protocolo **A2A 1.0**, utilizando contratos de dados estruturados e validação determinística, sem depender de conversas livres e desestruturadas.
 
+![Demonstração do painel do SINESTRO](docs/media/demo.gif)
+
 > **Regra central:** quem implementa uma tarefa nunca revisa o próprio trabalho. A revisão cruzada é atribuída a outro agente independente.
 
 ## Implementação atual
@@ -85,8 +87,8 @@ Se todas as subtarefas forem implementadas por um único agente, o outro agente 
 Os agentes simulados (mock) executam o workflow completo, o painel e a API sem modelo, token ou CLI externo. Nada neste modo é integração real.
 
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Windows: .venv\Scripts\pip
-cp .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia e ORCH_MOCK_AGENTS=true
+python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt   # Windows: .venv\Scripts\python
+cp -n .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia e ORCH_MOCK_AGENTS=true
 .venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
 ```
 
@@ -104,7 +106,7 @@ Veja [docs/DEMO.md](docs/DEMO.md) para um roteiro guiado.
 ```bash
 git clone <url-do-repositorio> sinestro
 cd sinestro
-cp .env.example .env  # Configure PROJECT_ROOT e as credenciais necessárias
+cp -n .env.example .env  # Configure PROJECT_ROOT e as credenciais necessárias
 ```
 
 No Windows (PowerShell):

@@ -62,3 +62,12 @@ def test_git_only_allows_read_only_subcommands(tmp_path):
     for bad in (["push"], ["reset", "--hard"], ["checkout", "."], ["commit", "-m", "x"], ["clean", "-fd"]):
         with pytest.raises(CommandNotAllowed):
             run_git(bad, tmp_path)
+
+
+def test_mock_agents_flag_is_read_from_env_file_with_inline_comment(tmp_path, monkeypatch):
+    monkeypatch.delenv("ORCH_MOCK_AGENTS", raising=False)
+    env = tmp_path / "x.env"
+    env.write_text(f"PROJECT_ROOT={tmp_path}\nORCH_MOCK_AGENTS=true   # agentes simulados\n", encoding="utf-8")
+    assert load_settings(env_file=env).mock_agents is True
+    env.write_text(f"PROJECT_ROOT={tmp_path}\n", encoding="utf-8")
+    assert load_settings(env_file=env).mock_agents is False
