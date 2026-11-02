@@ -3,11 +3,12 @@
 2. Liberação imediata de locks e cancelamento de processos no cancelamento.
 3. Modo Simples / Econômico (Fast-Track: pula negociação LLM e dispensa revisão final para 1 subtarefa).
 """
-import pytest
+from datetime import UTC
+
 from agents.mock_adapters import build_mock_backends
 from orchestrator.task_manager import ST, WF
 from tests.conftest import run
-from tests.unit.test_symmetric_flow import start, writer, task_for
+from tests.unit.test_symmetric_flow import task_for, writer
 
 
 def test_cancel_planned_workflow(harness):
@@ -250,8 +251,8 @@ def test_prune_inactive_workflows_preserves_accepted_decisions(harness):
                 )
 
             # Força data antiga (40 dias atrás)
-            from datetime import datetime, timezone, timedelta
-            old_time = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+            from datetime import datetime, timedelta
+            old_time = (datetime.now(UTC) - timedelta(days=40)).isoformat()
             with repo.connect() as con:
                 con.execute("UPDATE tasks SET updated_at=? WHERE id=?", (old_time, "wf-old"))
 

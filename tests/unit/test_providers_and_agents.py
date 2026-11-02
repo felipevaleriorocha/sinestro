@@ -9,15 +9,8 @@ Valida:
 """
 from __future__ import annotations
 
-import json
-from unittest.mock import MagicMock
-
-import pytest
-
-from agents.base import AgentBackend, AgentHealth, AgentResult, QuotaExceededError
-from agents.gemini_adapter import GeminiProvider
-from agents.mock_adapters import MockProvider, ScriptedBackend, symmetric_responder
-from agents.opencode_adapter import OpenCodeProvider
+from agents.base import AgentBackend, AgentResult
+from agents.mock_adapters import MockProvider
 from core.agent import Agent, AgentDefinition, SkillDef
 from core.capabilities import CapabilityRegistry, ModelCapability, ModelSpec
 from core.providers import Provider

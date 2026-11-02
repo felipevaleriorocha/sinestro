@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Iterable
 
 _AUTH_RE = re.compile(r"(Authorization['\"]?\s*[:=]\s*['\"]?)(Basic|Bearer)\s+[A-Za-z0-9+/=._-]+", re.IGNORECASE)
 _URL_CRED_RE = re.compile(r"(https?://)[^/\s:@]+:[^/\s@]+@")
@@ -35,7 +35,7 @@ class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             msg = record.getMessage()
-        except Exception:  # pragma: no cover
+        except Exception:  # pragma: no cover  # noqa: BLE001
             return True
         record.msg = redact(msg)
         record.args = ()

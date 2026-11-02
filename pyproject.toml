@@ -1,0 +1,29 @@
+[project]
+name = "sinestro"
+version = "0.5.1"
+description = "Local multi-agent orchestrator with A2A, cross-review and deterministic task DAG validation."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+extend-exclude = [".venv", "runtime", "logs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "BLE"]
+ignore = [
+    "E501",  # linhas longas: o código já usa linhas largas de forma consistente
+    "B008",  # Depends() do FastAPI em defaults
+    "B905",  # zip(strict=) mudaria o comportamento atual
+    "UP042",  # StrEnum alteraria str()/format() dos enums existentes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"agents/base.py" = ["F401"]  # reexporta erros/providers por retrocompatibilidade
+"tests/**" = ["B", "BLE", "E741"]
+"tools/**" = ["BLE", "B023", "E701", "E702"]
+
+[tool.coverage.run]
+source = ["agents", "api", "communication", "core", "database", "memory", "orchestrator", "domains"]
+omit = ["tests/*"]

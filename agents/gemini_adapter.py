@@ -17,13 +17,24 @@ import logging
 import re
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from agents.base import (
-    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentHealth,
-    AgentPermissionError, AgentResponseError, AgentResult,
-    AgentTimeoutError, AgentUnavailableError, QuotaExceededError, looks_like_quota_error,
+    READ_ONLY_SKILLS,
+    AgentAuthError,
+    AgentBackend,
+    AgentCancelledError,
+    AgentHealth,
+    AgentPermissionError,
+    AgentResponseError,
+    AgentResult,
+    AgentTimeoutError,
+    AgentUnavailableError,
+    QuotaCooldown,
+    QuotaExceededError,
+    looks_like_quota_error,
     parse_cooldown_seconds,
 )
 from core.capabilities import ModelCapability, ModelSpec
@@ -185,7 +196,7 @@ class GeminiProvider(Provider):
     def _flag_supported(self, flag: str) -> bool:
         try:
             return re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", self.help_text()) is not None
-        except Exception:
+        except Exception:  # noqa: BLE001 - sondagem best-effort de flag do CLI
             return False
 
     def effort_flag(self) -> str | None:

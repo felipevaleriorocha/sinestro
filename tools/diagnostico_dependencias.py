@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 r"""Diagnóstico de dependências do jogo (SOMENTE LEITURA, sem modelos, sem rede, sem custo).
 
 Mostra, a partir dos arquivos .lua/.luau do PROJECT_ROOT:
@@ -12,10 +11,10 @@ Mostra, a partir dos arquivos .lua/.luau do PROJECT_ROOT:
   7. recursos de Studio/MCP potencialmente compartilhados (configs MCP, mapeamento Rojo, Workspace, ferramentas citadas).
 
 Uso, na pasta do orquestrador (usa PROJECT_ROOT do .env, que só é LIDO):
-    .\.venv\Scripts\python.exe diagnostico_dependencias.py --autoteste     # valida os parsers num projeto de mentira
-    .\.venv\Scripts\python.exe diagnostico_dependencias.py                 # diagnóstico completo do jogo
-    .\.venv\Scripts\python.exe diagnostico_dependencias.py --raiz "C:\caminho\do\jogo"
-    .\.venv\Scripts\python.exe diagnostico_dependencias.py --relacao src/shared/modules/BigNum.luau src/server/services/FarmService.luau
+    .\.venv\Scripts\python.exe tools\diagnostico_dependencias.py --autoteste     # valida os parsers num projeto de mentira
+    .\.venv\Scripts\python.exe tools\diagnostico_dependencias.py                 # diagnóstico completo do jogo
+    .\.venv\Scripts\python.exe tools\diagnostico_dependencias.py --raiz "C:\caminho\do\jogo"
+    .\.venv\Scripts\python.exe tools\diagnostico_dependencias.py --relacao src/shared/modules/BigNum.luau src/server/services/FarmService.luau
 
 Saídas (só dentro de runtime\diagnostico\ e uma cópia do resumo na Área de Trabalho):
     diagnostico_resumo.txt, diagnostico.json, grafo_require.dot
@@ -310,7 +309,7 @@ class Analysis:
         self.studio: dict = {}
 
     # -- varredura
-    def run(self) -> "Analysis":
+    def run(self) -> Analysis:
         self._scan()
         self._parse()
         self._resolve()

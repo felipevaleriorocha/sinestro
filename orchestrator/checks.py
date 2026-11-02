@@ -11,9 +11,9 @@ import fnmatch
 import hashlib
 import json
 import posixpath
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from core.logging_setup import redact
 from core.safe_exec import resolve_binary, run_process

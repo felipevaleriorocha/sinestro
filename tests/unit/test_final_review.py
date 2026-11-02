@@ -1,5 +1,4 @@
 """[MOCK backends + A2A REAL] Revisão final: nunca silenciosa, nunca autorrevisão, mesma exigência de evidência."""
-import json
 from pathlib import Path
 
 from agents.mock_adapters import DEFAULT_FINDING, DEFAULT_TASK, build_mock_backends, review_json, symmetric_responder

@@ -1,14 +1,12 @@
 """Testes da aprovação configurável de permissões (AGY_AUTO_APPROVE_PERMISSIONS)."""
-import json
 import sys
+
 import pytest
 
 from agents.base import AgentPermissionError
 from agents.gemini_adapter import GeminiAdapter, result_from_payload
 from agents.mock_adapters import build_mock_backends, symmetric_responder
-from core.config import load_settings
-from orchestrator.coordinator import Coordinator, ST, WF
-from orchestrator.schemas import Plan, PlannedTask
+from orchestrator.schemas import PlannedTask
 from tests.conftest import FAKE_AGY, run
 
 

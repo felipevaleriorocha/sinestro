@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
+from datetime import UTC
 from typing import Any
 
 from core.agent import Agent, AgentDefinition, SkillDef
@@ -120,9 +121,10 @@ class QuotaCooldown:
 
     def mark(self, message: str, retry_after: int | None = None) -> None:
         from datetime import datetime, timedelta, timezone
+
         from core.logging_setup import redact
         seconds = retry_after if retry_after is not None else parse_cooldown_seconds(message, default_seconds=self.default_minutes * 60)
-        until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        until = datetime.now(UTC) + timedelta(seconds=seconds)
         state = self._read()
         state["quota"] = {
             "until": until.isoformat(),
@@ -146,7 +148,7 @@ class QuotaCooldown:
             until = datetime.fromisoformat(quota["until"])
         except (KeyError, ValueError):
             return None
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if until > now:
             remaining_secs = int((until - now).total_seconds())
             hours, rem = divmod(remaining_secs, 3600)

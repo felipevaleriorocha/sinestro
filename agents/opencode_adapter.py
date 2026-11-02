@@ -12,15 +12,26 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 
 from agents.base import (
+    READ_ONLY_SKILLS,
+    AgentAuthError,
+    AgentBackend,
+    AgentCancelledError,
+    AgentConnectionError,
+    AgentHealth,
+    AgentResponseError,
+    AgentResult,
+    AgentTimeoutError,
+    ContractNotVerifiedError,
+    ModelUnavailableError,
+    QuotaCooldown,
+    QuotaExceededError,
+    looks_like_quota_error,
     parse_cooldown_seconds,
-    READ_ONLY_SKILLS, AgentAuthError, AgentBackend, QuotaCooldown, AgentCancelledError, AgentConnectionError, AgentHealth, AgentResponseError, AgentResult,
-    AgentTimeoutError, ContractNotVerifiedError, ModelUnavailableError, QuotaExceededError, looks_like_quota_error,
 )
 from agents.opencode_contract import OpenCodeContract
 from core.capabilities import ModelCapability, ModelSpec
@@ -435,7 +446,7 @@ class OpenCodeProvider(Provider):
             try:
                 retry_payload = self._call("session_messages", path_params={"session_id": session_id}, timeout=60)
                 reply = extract_assistant_reply(retry_payload, before)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.warning("Falha na retentativa de leitura do OpenCode: %s", redact(e))
         if not reply["text"]:
             raise AgentResponseError("OpenCode concluiu sem texto do assistente.")

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from core.capabilities import ModelCapability, ModelSpec
@@ -106,7 +106,7 @@ class AgentHealth:
     detail: str = ""
     model: str | None = None
     checks: dict = field(default_factory=dict)
-    checked_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    checked_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict:
         return {

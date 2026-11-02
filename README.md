@@ -1,12 +1,16 @@
 # SINESTRO
 
-[![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.1-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.1-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
 > **A unified workspace for AI collaboration.**
 
 SINESTRO is a **local, autonomous multi-agent orchestrator** for coordinating software engineering workflows with AI agents that plan, implement, and **review one another's work**. Agents communicate through the **A2A 1.0** protocol using structured data contracts and deterministic validation rather than relying on unstructured chat.
+
+<!-- Demo: grave docs/media/demo.gif seguindo docs/DEMO.md e descomente a linha abaixo.
+![SINESTRO dashboard demo](docs/media/demo.gif)
+-->
 
 > **Core rule:** an agent that implements a task must never review its own work. Cross-review is assigned to a different, independent agent.
 
@@ -39,6 +43,21 @@ The current implementation includes static dependency analysis through the **Dep
 8. Final review           Global integration review checks interfaces, contracts, consistency, and shared state.
 ```
 
+```mermaid
+flowchart LR
+    A[Plan] --> B[Structural validation<br/>Dependency Analyzer, no LLM]
+    B --> C[Assignment<br/>2 rounds + deterministic tie-break]
+    C --> D[Implementation<br/>reserved files only]
+    D --> E[Automated checks]
+    E --> F[Cross-review<br/>the OTHER agent, read-only]
+    F -->|changes requested| D
+    F --> G[Wave integration checks]
+    G --> H[Final review]
+    H --> I{final_review_state}
+    I -->|passed| J[completed]
+    I -->|unresolved| K[needs_human]
+```
+
 Conflict-resolution hierarchy: **automated checks > reviewer with verifiable evidence > human escalation (`needs_human`)**.
 
 ## Final review states
@@ -64,6 +83,25 @@ If all subtasks were implemented by one agent, the other agent takes responsibil
 - Git available on `PATH` (used strictly in **read-only mode** for snapshots and diffs).
 - Optional: local static-analysis tools and linters (configured in `config/checks.json`).
 - Optional: Node.js (only for the dashboard's static-rendering test suite).
+
+## Quickstart (no `agy` or OpenCode required)
+
+Mock agents let you run the whole workflow, dashboard and API without any model, token or external CLI. Nothing in this mode is a real integration.
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Windows: .venv\Scripts\pip
+cp .env.example .env   # then set PROJECT_ROOT to any empty folder and ORCH_MOCK_AGENTS=true
+.venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
+```
+
+Open <http://127.0.0.1:8787/dashboard/> and submit a goal, or from a terminal:
+
+```bash
+curl -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" \
+     -d '{"goal": "Create a hello-world module", "mode": "full"}'
+```
+
+See [docs/DEMO.md](docs/DEMO.md) for a guided walkthrough.
 
 ## Installation and startup
 
@@ -167,27 +205,33 @@ Run an end-to-end operational test with real models (uses quota; run in an isola
 - **Controlled subprocesses:** arbitrary shell interpreters are not used; executables run with allowlisted, validated argument lists.
 - **Atomic reservations (`FileLockManager`):** all-or-nothing reservation of files and `mcp:` resources, with preventive lock retention when external process termination cannot be confirmed.
 
+## Design decisions
+
+- **Cross-review, never self-review.** A model reviewing its own output tends to agree with itself. The implementer and the reviewer are always different agents, and the reviewer must cite file, line and code excerpt.
+- **The task DAG is validated without an LLM.** Cycles, duplicate IDs, missing references and out-of-workspace paths are structural facts; a deterministic analyzer (`orchestrator/dependency_analyzer.py`) is cheaper, reproducible and testable.
+- **Sequential by default.** Parallel subtasks need provable file/resource isolation. Until lock reconciliation is audited, `PARALLEL_EXECUTION=false` is the safe default.
+- **Automated checks outrank opinions.** Linters and tests run before any LLM review, and a verifiable check beats a reviewer's claim.
+- **Locks fail closed.** If an external process cannot be confirmed as terminated, its reservation is retained (`expired_retained`) instead of released.
+- **Loopback only.** The service binds to `127.0.0.1` and refuses any other `ORCH_HOST`.
+- **Passive domains.** Domain rules (e.g. Roblox/Luau) live in a `DomainProfile`; the core stays domain-agnostic. See [docs/PLANO_ARQUITETURA.md](docs/PLANO_ARQUITETURA.md) (written in Portuguese).
+
 ## Roadmap
 
-### Phase 0 — v0.5.x core stabilization
+### Done (v0.5.x)
 
 - [x] Deterministic structural dependency validation and topological waves.
-- [x] Stage-history persistence (`stage_log`) and initial resource-lock retention support.
+- [x] Stage-history persistence (`stage_log`) and resource-lock retention (`expired_retained`).
+- [x] `DomainProfile` interface; Roblox rules extracted to `domains/roblox/`.
+- [x] Provider/Model/Agent abstraction with a `CapabilityRegistry` (Gemini, OpenCode and mock providers).
+- [x] Data-driven task routing and local hybrid retrieval (`memory/vector_store.py`).
+
+### Next
+
 - [ ] Audited external-process termination and reconciliation of retained locks.
 - [ ] Experimental controlled parallel execution (`PARALLEL_EXECUTION=true`).
-
-### Phase 1 — Domain-agnostic architecture and domain profiles
-
-- [ ] Formalize the `DomainProfile` interface to fully decouple domain rules, prompts, and file conventions from the core engine.
-- [ ] Extract modular profiles for software development, data pipelines, automation, and technical analysis.
-- [ ] Make the A2A server domain-agnostic, driven by schemas and declared capabilities.
-
-### Phase 2 — Multi-provider workspace and unified tools
-
-- [ ] Fully abstract providers (OpenAI, Anthropic, Google, DeepSeek, and local inference through Ollama/vLLM) without changing orchestration workflows.
-- [ ] Route tasks intelligently using capability, cost, and latency criteria.
-- [ ] Build a unified permissions, execution, and tool-reservation gateway through the Model Context Protocol (MCP).
-- [ ] Add local semantic context retrieval (RAG) for large documentation and codebases.
+- [ ] Additional domain profiles (data pipelines, automation, technical analysis).
+- [ ] More providers (OpenAI, Anthropic, local inference through Ollama/vLLM) behind the existing `Provider` interface.
+- [ ] Unified permissions, execution and tool-reservation gateway through MCP.
 
 ## Repository structure
 
@@ -197,7 +241,7 @@ api/             FastAPI REST routes, dependency injection, and application life
 communication/   A2A server/client (a2a-sdk), Agent Cards, and structured messaging
 config/          Dependency policies, assignment rules, and automated checks
 core/            Environment settings, sanitized logging, and secure process management
-database/        SQLite models (schema 6), additive migrations, and central repository
+database/        SQLite models (schema 7), additive migrations, and central repository
 dashboard/       Static web operations interface (HTML/CSS/JS, no external dependencies)
 mcp_bridge/      MCP server registry and health checks
 memory/          Context management and auditable technical-decision repository

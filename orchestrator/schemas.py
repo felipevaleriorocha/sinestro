@@ -259,7 +259,7 @@ class AssignmentDecision(BaseModel):
     reason: str = ""
 
     @model_validator(mode="after")
-    def _no_self_review(self) -> "AssignmentDecision":
+    def _no_self_review(self) -> AssignmentDecision:
         if self.reviewer == self.assigned_to:
             raise ValueError("reviewer não pode ser igual a assigned_to (quem escreve nunca revisa o próprio trabalho).")
         return self

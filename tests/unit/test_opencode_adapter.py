@@ -5,8 +5,14 @@ import json
 import httpx
 import pytest
 
-from agents.base import (AgentAuthError, AgentConnectionError, AgentTimeoutError, ContractNotVerifiedError, ModelUnavailableError,
-                         QuotaExceededError)
+from agents.base import (
+    AgentAuthError,
+    AgentConnectionError,
+    AgentTimeoutError,
+    ContractNotVerifiedError,
+    ModelUnavailableError,
+    QuotaExceededError,
+)
 from agents.opencode_adapter import OpenCodeAdapter, agent_names, extract_assistant_reply, find_model
 from database.repository import Repository
 

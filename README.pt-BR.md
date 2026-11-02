@@ -1,6 +1,6 @@
 # SINESTRO
 
-[![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)](#roadmap) [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.5.0-blue)](#) [![Licença: MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml/badge.svg)](https://github.com/felipevaleriorocha/sinestro/actions/workflows/ci.yml) [![Status](https://img.shields.io/badge/status-em%20desenvolvimento-orange)](#roadmap) [![Versão](https://img.shields.io/badge/vers%C3%A3o-0.5.1-blue)](#) [![Licença: MIT](https://img.shields.io/badge/Licen%C3%A7a-MIT-yellow.svg)](LICENSE)
 
 [English](README.md) | **Português (Brasil)**
 
@@ -19,7 +19,7 @@ O SINESTRO é um **orquestrador multiagente local e autônomo** para coordenar f
 
 Modelos e provedores são configurados declarativamente por variáveis de ambiente (`.env`). O núcleo de orquestração não deve permanecer permanentemente acoplado a um modelo específico.
 
-**Versão atual:** `0.5.0` · **Schema SQLite:** `6`
+**Versão atual:** `0.5.1` · **Schema SQLite:** `7`
 
 A implementação atual inclui análise estática de dependências por meio do **Dependency Analyzer**, execução determinística e sequencial por padrão (`PARALLEL_EXECUTION=false`), rastreabilidade de etapas por `stage_log` e suporte ao isolamento de recursos e ferramentas externas via **Model Context Protocol (MCP)**.
 
@@ -37,6 +37,21 @@ A implementação atual inclui análise estática de dependências por meio do *
 6. Revisão cruzada           O OUTRO agente revisa em modo somente leitura, apresentando evidências precisas: arquivo, linha e trecho do código.
 7. Integração da onda        Checagens automáticas validam o conjunto de arquivos produzido pelo grupo topológico.
 8. Revisão final             A revisão global verifica interfaces, contratos, consistência e estado compartilhado.
+```
+
+```mermaid
+flowchart LR
+    A[Planejamento] --> B[Validação estrutural<br/>Dependency Analyzer, sem LLM]
+    B --> C[Atribuição<br/>2 rodadas + desempate determinístico]
+    C --> D[Implementação<br/>somente arquivos reservados]
+    D --> E[Checagens automáticas]
+    E --> F[Revisão cruzada<br/>o OUTRO agente, somente leitura]
+    F -->|ajustes solicitados| D
+    F --> G[Integração da onda]
+    G --> H[Revisão final]
+    H --> I{final_review_state}
+    I -->|passed| J[completed]
+    I -->|pendente| K[needs_human]
 ```
 
 Hierarquia para resolução de divergências: **checagens automáticas > revisor com evidências verificáveis > escalonamento humano (`needs_human`)**.
@@ -64,6 +79,25 @@ Se todas as subtarefas forem implementadas por um único agente, o outro agente 
 - Git disponível no `PATH` (utilizado estritamente em **modo somente leitura** para snapshots e diffs).
 - Opcional: ferramentas locais de análise estática e linters (configurados em `config/checks.json`).
 - Opcional: Node.js (somente para a suíte de testes de renderização estática do dashboard).
+
+## Início rápido (sem `agy` nem OpenCode)
+
+Os agentes simulados (mock) executam o workflow completo, o painel e a API sem modelo, token ou CLI externo. Nada neste modo é integração real.
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt   # Windows: .venv\Scripts\pip
+cp .env.example .env   # depois defina PROJECT_ROOT para uma pasta vazia e ORCH_MOCK_AGENTS=true
+.venv/bin/python run_server.py                                      # Windows: .venv\Scripts\python
+```
+
+Abra <http://127.0.0.1:8787/dashboard/> e envie um objetivo, ou pelo terminal:
+
+```bash
+curl -X POST http://127.0.0.1:8787/tasks -H "Content-Type: application/json" \
+     -d '{"goal": "Criar um módulo hello-world", "mode": "full"}'
+```
+
+Veja [docs/DEMO.md](docs/DEMO.md) para um roteiro guiado.
 
 ## Instalação e inicialização
 
@@ -167,27 +201,33 @@ Execute um teste operacional ponta a ponta com modelos reais (consome cota; util
 - **Subprocessos controlados:** não são utilizados interpretadores de shell arbitrários; os executáveis recebem listas permitidas de argumentos validados.
 - **Reservas atômicas (`FileLockManager`):** reserva transacional do tipo "tudo ou nada" para arquivos e recursos `mcp:`, com retenção preventiva de locks quando não é possível confirmar o encerramento de um processo externo.
 
+## Decisões de design
+
+- **Revisão cruzada, nunca autorrevisão.** Um modelo que revisa a própria saída tende a concordar consigo mesmo. Implementador e revisor são sempre agentes diferentes, e o revisor precisa citar arquivo, linha e trecho de código.
+- **O DAG de tarefas é validado sem LLM.** Ciclos, IDs duplicados, referências ausentes e caminhos fora do workspace são fatos estruturais; um analisador determinístico (`orchestrator/dependency_analyzer.py`) é mais barato, reproduzível e testável.
+- **Sequencial por padrão.** Subtarefas paralelas exigem isolamento comprovado de arquivos e recursos. Até a reconciliação de locks ser auditada, `PARALLEL_EXECUTION=false` é o padrão seguro.
+- **Checagens automáticas valem mais que opiniões.** Linters e testes rodam antes de qualquer revisão por LLM, e uma checagem verificável vence a alegação de um revisor.
+- **Locks falham de forma segura.** Se não for possível confirmar o encerramento de um processo externo, a reserva é retida (`expired_retained`) em vez de liberada.
+- **Somente loopback.** O serviço escuta em `127.0.0.1` e recusa qualquer outro `ORCH_HOST`.
+- **Domínios passivos.** As regras de domínio (ex.: Roblox/Luau) ficam em um `DomainProfile`; o núcleo permanece agnóstico. Veja [docs/PLANO_ARQUITETURA.md](docs/PLANO_ARQUITETURA.md).
+
 ## Roadmap
 
-### Fase 0 — Estabilização do núcleo v0.5.x
+### Concluído (v0.5.x)
 
 - [x] Validação estrutural determinística de dependências e ondas topológicas.
-- [x] Persistência do histórico de etapas (`stage_log`) e suporte inicial à retenção de locks.
+- [x] Persistência do histórico de etapas (`stage_log`) e retenção de locks (`expired_retained`).
+- [x] Interface `DomainProfile`; regras de Roblox extraídas para `domains/roblox/`.
+- [x] Abstração Provider/Model/Agent com `CapabilityRegistry` (provedores Gemini, OpenCode e mock).
+- [x] Roteamento de tarefas orientado a dados e recuperação híbrida local (`memory/vector_store.py`).
+
+### Próximos passos
+
 - [ ] Encerramento auditado de processos externos e reconciliação de locks retidos.
 - [ ] Paralelismo experimental e controlado (`PARALLEL_EXECUTION=true`).
-
-### Fase 1 — Arquitetura agnóstica e perfis de domínio
-
-- [ ] Formalizar a interface `DomainProfile`, desacoplando regras de domínio, prompts e convenções de arquivos do motor central.
-- [ ] Extrair perfis modulares para desenvolvimento de software, pipelines de dados, automação e análise técnica.
-- [ ] Tornar o servidor A2A agnóstico a domínios, orientado por schemas e capacidades declaradas.
-
-### Fase 2 — Workspace multi-provider e ferramentas unificadas
-
-- [ ] Abstrair completamente provedores (OpenAI, Anthropic, Google, DeepSeek e inferência local via Ollama/vLLM), sem alterar os fluxos de orquestração.
-- [ ] Roteamento inteligente de tarefas com base em capacidade, custo e latência.
-- [ ] Criar um gateway unificado de permissões, execução e reserva de ferramentas via Model Context Protocol (MCP).
-- [ ] Adicionar recuperação semântica local de contexto (RAG) para grandes volumes de documentação e código.
+- [ ] Novos perfis de domínio (pipelines de dados, automação, análise técnica).
+- [ ] Mais provedores (OpenAI, Anthropic, inferência local via Ollama/vLLM) sobre a interface `Provider` existente.
+- [ ] Gateway unificado de permissões, execução e reserva de ferramentas via MCP.
 
 ## Estrutura do repositório
 
@@ -197,7 +237,7 @@ api/             Rotas REST FastAPI, injeção de dependências e ciclo de vida 
 communication/   Servidor/cliente A2A (a2a-sdk), Agent Cards e mensageria estruturada
 config/          Políticas de dependência, regras de atribuição e checagens automáticas
 core/            Configurações de ambiente, logging sanitizado e gerenciamento seguro de processos
-database/        Modelos SQLite (schema 6), migrações aditivas e repositório central
+database/        Modelos SQLite (schema 7), migrações aditivas e repositório central
 dashboard/       Interface web estática de operações (HTML/CSS/JS, sem dependências externas)
 mcp_bridge/      Registro e verificação de saúde de servidores MCP
 memory/          Gerenciamento de contexto e repositório auditável de decisões técnicas

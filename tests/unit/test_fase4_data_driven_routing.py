@@ -6,15 +6,15 @@
 4. Roteamento inteligente empírico (IntelligentRouter) com fallback quando amostras < 5 e data-driven quando >= 5.
 5. Endpoints de API (/metrics/routing-stats e /workflows/prune-inactive).
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from agents.mock_adapters import build_mock_backends
-from database.repository import Repository, utc_now
-from orchestrator.assignment import IntelligentRouter, MIN_DATA_DRIVEN_SAMPLES
-from orchestrator.task_manager import ST, WF
+from database.repository import Repository
+from orchestrator.assignment import IntelligentRouter
+from orchestrator.task_manager import WF
 from tests.conftest import run
 from tests.unit.test_symmetric_flow import writer
 
@@ -50,7 +50,7 @@ def test_touch_workflow_and_prune_inactive(tmp_path: Path):
     repo = Repository(db_path)
 
     # 1. Cria 3 workflows com timestamps artificiais passados
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     old_time = (now - timedelta(days=35)).isoformat()
     recent_time = (now - timedelta(days=5)).isoformat()
 
@@ -91,7 +91,7 @@ def test_touch_workflow_and_prune_inactive(tmp_path: Path):
     repo.touch_workflow("wf_recent_completed")
     refreshed = repo.get_workflow("wf_recent_completed")
     updated_dt = datetime.fromisoformat(refreshed["updated_at"])
-    assert (datetime.now(timezone.utc) - updated_dt).total_seconds() < 5
+    assert (datetime.now(UTC) - updated_dt).total_seconds() < 5
 
 
 def test_intelligent_router_data_driven_decision(tmp_path: Path):

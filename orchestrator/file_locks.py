@@ -11,7 +11,7 @@ import asyncio
 import os
 import posixpath
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from database.repository import Repository, utc_now
@@ -88,7 +88,7 @@ class FileLockManager:
                 ttl_seconds: int | None = None) -> LockGrant:
         resources = sorted(set(resources))
         ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
-        now_dt = datetime.now(timezone.utc)
+        now_dt = datetime.now(UTC)
         now, expires = now_dt.isoformat(), (now_dt + timedelta(seconds=ttl)).isoformat()
         with self.repo.connect() as con:
             # Expirados são liberados na mesma transação.
@@ -129,7 +129,7 @@ class FileLockManager:
 
     def renew(self, resources: list[str], owner: str, ttl_seconds: int | None = None) -> None:
         ttl = ttl_seconds if ttl_seconds is not None else self.ttl_seconds
-        expires = (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat()
+        expires = (datetime.now(UTC) + timedelta(seconds=ttl)).isoformat()
         with self.repo.connect() as con:
             for res in resources:
                 con.execute("UPDATE file_locks SET expires_at=? WHERE resource=? AND owner=?", (expires, res, owner))

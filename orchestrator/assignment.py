@@ -68,7 +68,7 @@ class IntelligentRouter:
                     candidates_scores.sort(key=lambda x: x[1], reverse=True)
                     best_name, best_score, fp, cycles, n = candidates_scores[0]
                     return best_name, f"data_driven:{cat} (sucesso={fp:.0%}, ciclos={cycles:.1f}, n={n})"
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 log.warning("Falha ao consultar estatísticas de roteamento: %s", e)
 
         if not registry:
@@ -135,7 +135,7 @@ class AssignmentRules:
     path_rules: list[dict] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AssignmentRules":
+    def from_dict(cls, data: dict) -> AssignmentRules:
         if not isinstance(data, dict):
             return cls()
         default = str(data.get("default_agent", "gemini")).lower()
@@ -145,7 +145,7 @@ class AssignmentRules:
         return cls(default if default in AGENTS else "gemini", cats, rules)
 
     @classmethod
-    def load(cls, path: Path) -> "AssignmentRules":
+    def load(cls, path: Path) -> AssignmentRules:
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError):

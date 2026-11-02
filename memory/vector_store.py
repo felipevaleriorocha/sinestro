@@ -14,9 +14,10 @@ import math
 import re
 import sqlite3
 import struct
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 log = logging.getLogger("memory.vector_store")
 

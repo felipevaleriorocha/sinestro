@@ -1,9 +1,7 @@
 """Integração determinística da v0.5, sem A2A e sem modelos."""
 import json
-import sqlite3
 from pathlib import Path
 
-from core.config import load_settings
 from database.models import SCHEMA_VERSION
 from database.repository import Repository
 from orchestrator.dependency_analyzer import DependencyAnalyzer
