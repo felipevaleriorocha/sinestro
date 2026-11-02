@@ -74,7 +74,7 @@ class Repository:
             )
 
     def update_workflow(self, workflow_id: str, **fields: Any) -> None:
-        allowed = {"status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested",
+        allowed = {"goal", "status", "phase", "result_json", "error", "context_hash", "context_sources_json", "plan_json", "cancel_requested",
                    "planned_by", "planned_by_fallback", "metrics_json", "mode", "final_review_state", "final_review_json",
                    "dependency_analysis_json", "plan_reformulations"}
         sets, params = ["updated_at=?"], [utc_now()]
@@ -532,4 +532,22 @@ class Repository:
             con.execute(f"DELETE FROM decisions WHERE workflow_id IN ({id_placeholders})", wf_ids)
             con.execute(f"DELETE FROM tasks WHERE id IN ({id_placeholders})", wf_ids)
             return len(wf_ids)
+
+    def delete_workflow(self, workflow_id: str) -> bool:
+        """Exclui permanentemente um workflow e todos os seus registros vinculados."""
+        with self.connect() as con:
+            row = con.execute("SELECT id FROM tasks WHERE id = ?", (workflow_id,)).fetchone()
+            if not row:
+                return False
+            con.execute("DELETE FROM task_events WHERE task_id = ?", (workflow_id,))
+            con.execute("DELETE FROM agent_messages WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM agent_runs WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM stage_log WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM file_changes WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM subtasks WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM decisions WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM file_locks WHERE workflow_id = ?", (workflow_id,))
+            con.execute("DELETE FROM agent_sessions WHERE context_key = ?", (workflow_id,))
+            con.execute("DELETE FROM tasks WHERE id = ?", (workflow_id,))
+            return True
 

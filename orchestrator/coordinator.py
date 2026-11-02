@@ -122,9 +122,10 @@ class Coordinator:
             except Exception as exc:  # noqa: BLE001
                 log.warning("Falha ao cancelar backend: %s", exc)
 
-        wf = self.repo.get_workflow(wf_id)
-        is_running = self.is_running(wf_id)
-        if not is_running:
+        t = self._running.get(wf_id)
+        if t and not t.done():
+            t.cancel()
+        else:
             for sub in self.tasks.subtasks(wf_id):
                 if sub["status"] not in ST.DONE:
                     self.repo.update_subtask(sub["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
@@ -147,6 +148,10 @@ class Coordinator:
                 status = WF.CANCELED if self.tasks.cancel_requested(wf_id) else WF.INTERRUPTED
                 err_msg = "Cancelado pelo usuário." if status == WF.CANCELED else "Execução interrompida (serviço encerrando)."
                 self.tasks.set_status(wf_id, status, error=err_msg)
+                for sub in self.tasks.subtasks(wf_id):
+                    if sub["status"] not in ST.DONE:
+                        self.repo.update_subtask(sub["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
+                self.locks.release_workflow(wf_id)
                 raise
             except Exception as exc:  # noqa: BLE001
                 from agents.base import AgentTimeoutError

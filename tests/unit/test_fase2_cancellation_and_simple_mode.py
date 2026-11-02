@@ -137,3 +137,30 @@ def test_simple_mode_multiple_subtasks_runs_final_review(harness, workspace):
             assert d["final_review_state"] == "passed"
 
     run(go())
+
+
+def test_delete_and_rename_workflow(harness):
+    """Verifica exclusão de workflow (DELETE /tasks/{id}) e renomeação (PATCH /tasks/{id})."""
+    async def go():
+        b = build_mock_backends()
+        async with harness(b) as h:
+            res = await h.client.post("/tasks", json={"goal": "Conversa original para excluir", "mode": "plan_only"})
+            wf_id = res.json()["id"]
+            await h.wait_done(wf_id)
+
+            # Renomeia
+            r_patch = await h.client.patch(f"/tasks/{wf_id}", json={"goal": "Conversa renomeada"})
+            assert r_patch.status_code == 200
+            d = (await h.client.get(f"/tasks/{wf_id}")).json()
+            assert d["goal"] == "Conversa renomeada"
+
+            # Exclui
+            r_del = await h.client.delete(f"/tasks/{wf_id}")
+            assert r_del.status_code == 200
+            assert r_del.json()["deleted"] is True
+
+            # Confirma 404
+            r_get = await h.client.get(f"/tasks/{wf_id}")
+            assert r_get.status_code == 404
+    run(go())
+

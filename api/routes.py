@@ -47,6 +47,10 @@ class AutoApproveRequest(BaseModel):
     enabled: bool
 
 
+class TaskUpdate(BaseModel):
+    goal: str | None = Field(default=None, max_length=10000)
+
+
 
 def C(request: Request):
     return request.app.state.container
@@ -134,6 +138,36 @@ async def cancel_task(task_id: str, request: Request) -> dict:
     c.repo.touch_workflow(task_id)
     await c.coordinator.cancel(task_id)
     return {"id": task_id, "cancel_requested": True}
+
+
+@router.delete("/tasks/{task_id}", tags=["Tarefas"])
+async def delete_task(task_id: str, request: Request) -> dict:
+    """Exclui permanentemente uma conversa / workflow e todos os registros associados."""
+    c = C(request)
+    wf = c.repo.get_workflow(task_id)
+    if not wf:
+        raise HTTPException(404, "Tarefa não encontrada.")
+    if c.coordinator.is_running(task_id):
+        await c.coordinator.cancel(task_id)
+    c.locks.release_workflow(task_id)
+    deleted = c.repo.delete_workflow(task_id)
+    return {"id": task_id, "deleted": deleted}
+
+
+@router.patch("/tasks/{task_id}", tags=["Tarefas"])
+def patch_task(task_id: str, payload: TaskUpdate, request: Request) -> dict:
+    """Atualiza metadados da tarefa (ex.: renomear conversa)."""
+    c = C(request)
+    wf = c.repo.get_workflow(task_id)
+    if not wf:
+        raise HTTPException(404, "Tarefa não encontrada.")
+    fields: dict[str, Any] = {}
+    if payload.goal is not None and payload.goal.strip():
+        fields["goal"] = payload.goal.strip()
+    if fields:
+        c.repo.update_workflow(task_id, **fields)
+        c.repo.touch_workflow(task_id)
+    return {"id": task_id, "updated": True}
 
 
 @router.post("/tasks/{task_id}/resume", status_code=202, tags=["Tarefas"])

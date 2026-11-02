@@ -175,9 +175,31 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .dot-running,.dot-delegating,.dot-checking,.dot-reviewing,.dot-run{background:var(--blue);box-shadow:0 0 6px var(--blue)}
 .dot-failed,.dot-rejected,.dot-unavailable,.dot-err,.dot-canceled{background:var(--err)}
 .dot-blocked,.dot-needs_human,.dot-paused,.dot-planned,.dot-pending,.dot-warn{background:var(--warn)}
-.chat-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s ease}
+.chat-item{position:relative;display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:all .15s ease}
 .chat-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
 .chat-item.active{background:#1d263b;color:var(--text);font-weight:500}
+.chat-item.menu-open{background:#1d263b;color:var(--text)}
+.chat-item .chat-title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-item-menu-btn{display:none;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;flex-shrink:0;transition:all .15s}
+.chat-item-menu-btn:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+.chat-item:hover .chat-item-menu-btn, .chat-item.active .chat-item-menu-btn, .chat-item.menu-open .chat-item-menu-btn{display:inline-flex}
+.chat-pin-ico{width:11px;height:11px;color:var(--blue);flex-shrink:0}
+
+/* Menu de contexto da conversa (estilo imagem de referência) */
+.context-menu{position:fixed;z-index:9999;width:215px;background:#151c2c;border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:5px;box-shadow:0 12px 32px rgba(0,0,0,0.65),0 4px 12px rgba(0,0,0,0.4);user-select:none;backdrop-filter:blur(12px);animation:cmenuIn .12s cubic-bezier(0.16,1,0.3,1)}
+@keyframes cmenuIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
+.context-menu-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:500;color:#cbd5e1;cursor:pointer;transition:all .12s ease}
+.context-menu-item:hover{background:rgba(255,255,255,0.07);color:#ffffff}
+.context-menu-item .cmi-ico{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;color:#94a3b8;flex-shrink:0}
+.context-menu-item .cmi-ico svg{width:15px;height:15px}
+.context-menu-item:hover .cmi-ico{color:#ffffff}
+.context-menu-item .cmi-label{flex:1;min-width:0;white-space:nowrap}
+.context-menu-item .cmi-shortcut{font-size:12px;font-weight:600;color:#64748b;font-family:ui-monospace,monospace}
+.context-menu-item.cmi-danger{color:#f87171}
+.context-menu-item.cmi-danger .cmi-ico{color:#f87171}
+.context-menu-item.cmi-danger .cmi-shortcut{color:#ef4444}
+.context-menu-item.cmi-danger:hover{background:rgba(239,68,68,0.14);color:#fca5a5}
+.context-menu-item.cmi-danger:hover .cmi-ico{color:#fca5a5}
 .clip1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
 @media (max-width:1100px){
   .top-row{grid-template-columns:1fr;gap:14px}
@@ -275,6 +297,10 @@ pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.4 var(--mono
                       <span class="toggle-track"><span class="toggle-thumb"></span></span>
                     </span>
                   </label>
+                  <button id="cancelGenBtn" class="btn-cancel" style="display:none;padding:5px 12px;border-radius:8px;font-size:12px;gap:5px" onclick="act('cancel')" title="Interromper geração atual">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    Interromper
+                  </button>
                   <button class="send" onclick="sendChatMessage()" title="Enviar" aria-label="Enviar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
                 </div>
               </div>
@@ -515,13 +541,21 @@ function renderAssistantResponse(d){
       <span>Orquestrando Agentes no Workspace…</span>
     </div>
     <p style="margin:6px 0;font-size:13.5px;color:#c8d3e2">Os agentes Gemini e DeepSeek estão analisando e implementando as modificações. Você pode acompanhar as ações atuais e subtarefas nos cards acima.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn-cancel" onclick="act('cancel')" title="Interromper solicitação e liberar recursos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Interromper Geração
+      </button>
+    </div>
   </div>`;
 }
 
 function renderRun(force){
   const d=D; if(!d) return;
-  const can=ACTIVE.includes(d.status), res=RESUME.includes(d.status)&&!d.running, a=ACT.find(x=>x.agent!=='checagens'&&(!x.workflow_id||x.workflow_id===d.id));
+  const can=ACTIVE.includes(d.status) || !!d.running, res=RESUME.includes(d.status)&&!d.running&&!can, a=ACT.find(x=>x.agent!=='checagens'&&(!x.workflow_id||x.workflow_id===d.id));
   document.title=(a&&can?`● ${dn(a.agent)} — `:'')+'Orquestrador Multiagente Roblox';
+  const cancelBtn = $('#cancelGenBtn');
+  if(cancelBtn) cancelBtn.style.display = can ? 'inline-flex' : 'none';
   
   const statusIco = d.status==='completed'?'ok':d.status==='failed'?'bad':ACTIVE.includes(d.status)?'run':'ok';
   const statusIcoColor = d.status==='completed'?'green':d.status==='failed'?'err':ACTIVE.includes(d.status)?'blue':'warn';
@@ -652,17 +686,148 @@ async function sendChatMessage(){
     toast(e.message);
   }
 }
+let pinnedChats = new Set(JSON.parse(localStorage.getItem('sinestro_pinned_chats') || '[]'));
+function savePinnedChats(){
+  localStorage.setItem('sinestro_pinned_chats', JSON.stringify([...pinnedChats]));
+}
+
+let menuTargetId = null;
+
+function openChatMenu(e, id){
+  if(e){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  menuTargetId = id;
+  const menu = $('#chatContextMenu');
+  if(!menu) return;
+
+  const isPinned = pinnedChats.has(id);
+  const pinLabel = $('#cmiPinLabel');
+  if(pinLabel) pinLabel.textContent = isPinned ? 'Desafixar' : 'Fixar';
+
+  document.querySelectorAll('.chat-item').forEach(el => {
+    el.classList.toggle('menu-open', el.dataset.id === id);
+  });
+
+  menu.hidden = false;
+  const menuW = 215, menuH = 190;
+  let x = e ? e.clientX : 100, y = e ? e.clientY : 100;
+  if(e && e.currentTarget && e.currentTarget.classList.contains('chat-item-menu-btn')){
+    const rect = e.currentTarget.getBoundingClientRect();
+    x = rect.right + 4;
+    y = rect.top;
+  }
+  if(x + menuW > window.innerWidth - 8) x = window.innerWidth - menuW - 8;
+  if(y + menuH > window.innerHeight - 8) y = window.innerHeight - menuH - 8;
+  menu.style.left = Math.max(8, x) + 'px';
+  menu.style.top = Math.max(8, y) + 'px';
+}
+
+function closeChatMenu(){
+  const menu = $('#chatContextMenu');
+  if(menu) menu.hidden = true;
+  document.querySelectorAll('.chat-item.menu-open').forEach(el => el.classList.remove('menu-open'));
+  menuTargetId = null;
+}
+
+window.addEventListener('click', e => {
+  if(!e.target.closest('#chatContextMenu') && !e.target.closest('.chat-item-menu-btn')) closeChatMenu();
+});
+window.addEventListener('contextmenu', e => {
+  if(!e.target.closest('.chat-item')) closeChatMenu();
+});
+window.addEventListener('keydown', e => {
+  const menu = $('#chatContextMenu');
+  if(menu && !menu.hidden){
+    if(e.key === 'Escape'){ closeChatMenu(); return; }
+    if(e.key === 'p' || e.key === 'P'){ e.preventDefault(); handleChatMenuAction('pin'); return; }
+    if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); handleChatMenuAction('rename'); return; }
+    if(e.key === 'd' || e.key === 'D' || e.key === 'Delete'){ e.preventDefault(); handleChatMenuAction('delete'); return; }
+  }
+});
+
+async function handleChatMenuAction(action){
+  const id = menuTargetId;
+  closeChatMenu();
+  if(!id) return;
+  const item = (WF || []).find(w => w.id === id);
+
+  if(action === 'pin'){
+    if(pinnedChats.has(id)) pinnedChats.delete(id);
+    else pinnedChats.add(id);
+    savePinnedChats();
+    renderSidebar();
+    toast(pinnedChats.has(id) ? 'Conversa fixada.' : 'Conversa desafixada.');
+    return;
+  }
+
+  if(action === 'rename'){
+    const curGoal = item ? item.goal : '';
+    const newName = prompt('Mudar o nome da conversa:', curGoal);
+    if(!newName || !newName.trim() || newName.trim() === curGoal) return;
+    try {
+      await api(`/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: newName.trim() })
+      });
+      if(item) item.goal = newName.trim();
+      if(D && D.id === id) D.goal = newName.trim();
+      renderSidebar();
+      if(selected === id) renderHome(true);
+      toast('Nome atualizado.');
+    } catch(err){
+      toast('Erro ao renomear: ' + err.message);
+    }
+    return;
+  }
+
+  if(action === 'delete'){
+    const title = item ? item.goal : 'esta conversa';
+    const shortTitle = title.length > 40 ? title.slice(0, 40) + '…' : title;
+    if(!confirm(`Deseja apagar "${shortTitle}"?\n\nEsta ação excluirá permanentemente o histórico e as subtarefas.`)) return;
+    try {
+      await api(`/tasks/${id}`, { method: 'DELETE' });
+      WF = (WF || []).filter(w => w.id !== id);
+      pinnedChats.delete(id);
+      savePinnedChats();
+      if(selected === id){
+        novo();
+      } else {
+        renderSidebar();
+      }
+      toast('Conversa apagada com sucesso.');
+    } catch(err){
+      toast('Erro ao apagar: ' + err.message);
+    }
+    return;
+  }
+
+  if(action === 'project' || action === 'group'){
+    toast('Organização em projetos e pastas em desenvolvimento.');
+  }
+}
+
 function renderSidebar(){
   const chatList = $('#sidebarChatsList');
   if (chatList) {
-    const recent = (WF || []).slice(0, 10);
-    if (recent.length > 0) {
-      chatList.innerHTML = recent.map(w => {
+    const all = (WF || []);
+    const pinned = all.filter(w => pinnedChats.has(w.id));
+    const unpinned = all.filter(w => !pinnedChats.has(w.id));
+    const list = [...pinned, ...unpinned].slice(0, 30);
+    if (list.length > 0) {
+      chatList.innerHTML = list.map(w => {
         const isAct = w.id === selected;
         const st = w.status || 'queued';
-        return `<div class="chat-item ${isAct ? 'active' : ''}" onclick="select('${esc(w.id)}')" title="${esc(w.goal)} (${esc(st)})">
+        const isPinned = pinnedChats.has(w.id);
+        return `<div class="chat-item ${isAct ? 'active' : ''}" data-id="${esc(w.id)}" onclick="select('${esc(w.id)}')" oncontextmenu="openChatMenu(event, '${esc(w.id)}')" title="${esc(w.goal)} (${esc(st)})">
           <span class="status-dot dot-${esc(st)}"></span>
-          <span class="clip1">${esc(w.goal)}</span>
+          ${isPinned ? '<svg viewBox="0 0 24 24" fill="currentColor" class="chat-pin-ico" title="Fixada"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5v6l1 1 1-1v-6h5v-2l-2-2z"/></svg>' : ''}
+          <span class="chat-title">${esc(w.goal)}</span>
+          <button class="chat-item-menu-btn" onclick="openChatMenu(event, '${esc(w.id)}')" title="Mais opções" aria-label="Mais opções">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
         </div>`;
       }).join('');
     } else {
@@ -947,6 +1112,34 @@ function renderTech(force){
 async function refresh(){ await loadHealth(); await loadWorkflows(true); await Promise.all([loadAgents(), loadDetail(true), loadGlobal(true), loadMcp()]); }
 refresh(); setInterval(() => { loadWorkflows(); loadDetail(); loadAgents(); if(vw==='tech') loadTech(); }, 3000); setInterval(() => { loadGlobal(); loadMcp(); loadHealth(); }, 10000);
 </script>
+
+<div id="chatContextMenu" class="context-menu" hidden>
+  <div class="context-menu-item" onclick="handleChatMenuAction('pin')">
+    <span class="cmi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5v6l1 1 1-1v-6h5v-2l-2-2z"/></svg></span>
+    <span class="cmi-label" id="cmiPinLabel">Fixar</span>
+    <span class="cmi-shortcut">P</span>
+  </div>
+  <div class="context-menu-item" onclick="handleChatMenuAction('rename')">
+    <span class="cmi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+    <span class="cmi-label">Mudar o nome</span>
+    <span class="cmi-shortcut">R</span>
+  </div>
+  <div class="context-menu-item" onclick="handleChatMenuAction('project')">
+    <span class="cmi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg></span>
+    <span class="cmi-label">Adicionar ao projeto</span>
+    <span class="cmi-shortcut">›</span>
+  </div>
+  <div class="context-menu-item" onclick="handleChatMenuAction('group')">
+    <span class="cmi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="cmi-label">Mover para o grupo</span>
+    <span class="cmi-shortcut">›</span>
+  </div>
+  <div class="context-menu-item cmi-danger" onclick="handleChatMenuAction('delete')">
+    <span class="cmi-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
+    <span class="cmi-label">Apagar</span>
+    <span class="cmi-shortcut">D</span>
+  </div>
+</div>
 </body>
 </html>
 

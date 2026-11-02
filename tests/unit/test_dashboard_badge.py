@@ -45,3 +45,15 @@ def test_dashboard_shows_disabled_seal_and_unreviewed_warning():
     assert "sem revisão final" in badge({"status": "completed_unreviewed", "final_review_state": "skipped"})
     assert "aceita por decisão humana" in badge({"status": "completed", "final_review_state": "accepted_by_human"})
     assert badge({"status": "completed", "final_review_state": "passed"}) == ""
+
+
+def test_dashboard_contains_context_menu_and_cancel_elements():
+    """Garante a presença dos elementos de menu de contexto e botões de interrupção na interface."""
+    html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+    assert 'id="chatContextMenu"' in html
+    assert "cmi-danger" in html
+    assert "Interromper Geração" in html
+    assert 'id="cancelGenBtn"' in html
+    assert "openChatMenu" in html
+    assert "handleChatMenuAction" in html
+
