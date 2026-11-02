@@ -110,10 +110,11 @@ def test_intelligent_router_data_driven_decision(tmp_path: Path):
     agent, reason = IntelligentRouter.route("ui", files=["src/ui.lua"], registry=registry, repo=repo)
     assert "data_driven" not in reason
 
-    # Adiciona 4 amostras para deepseek (ainda abaixo do teto de 5)
-    for _ in range(MIN_DATA_DRIVEN_SAMPLES - 1):
+    # Adiciona exatamente 4 amostras no banco (estritamente abaixo do limiar de 5)
+    for _ in range(4):
         repo.record_subtask_outcome("deepseek", "ui", first_pass=True, review_cycles=0, duration_seconds=10.0)
 
+    # Com 4 amostras (< 5), o router NÃO pode acionar roteamento orientado a dados (mata mutação de limiar 5 -> 0)
     agent, reason = IntelligentRouter.route("ui", files=["src/ui.lua"], registry=registry, repo=repo)
     assert "data_driven" not in reason
 
@@ -171,3 +172,42 @@ def test_workflow_execution_records_routing_outcome(harness, workspace):
             assert any(s["samples_count"] >= 1 for s in stats)
 
     run(go())
+
+
+def test_resolve_assignment_without_negotiation_consults_data_driven(tmp_path: Path):
+    """Quando não há negociação (ex.: modo simples), resolve_assignment deve consultar o placar empírico."""
+    from orchestrator.assignment import AssignmentRules, resolve_assignment
+    db_path = tmp_path / "sinestro_test.db"
+    repo = Repository(db_path)
+
+    # Popula 5 amostras com 100% de sucesso para deepseek em 'ui'
+    for _ in range(5):
+        repo.record_subtask_outcome("deepseek", "ui", first_pass=True, review_cycles=0, duration_seconds=10.0)
+
+    rules = AssignmentRules(default_agent="gemini")
+    task = {"id": "sub-1", "category": "ui", "files": ["ui.lua"], "assigned_to": "gemini"}
+
+    # Sem resposta (response=None)
+    decision = resolve_assignment(task, proposed_by="gemini", response=None, responder=None,
+                                  rules=rules, gemini_unavailable_reason=None, repo=repo)
+    assert decision.assigned_to == "deepseek"
+    assert decision.decided_by == "data_driven"
+    assert "data_driven:ui" in decision.rule
+
+
+def test_routing_clean_data_filters_unreviewed_and_non_settled(tmp_path: Path):
+    """Testa que subtasks com revisão dispensada ou não concluídas com sucesso técnico não poluem o placar."""
+    db_path = tmp_path / "sinestro_test.db"
+    repo = Repository(db_path)
+
+    # 1. Subtask aprovada com revisão normal -> deve ser registrada
+    repo.record_subtask_outcome("deepseek", "core", first_pass=True, review_cycles=0, duration_seconds=15.0)
+    stats = repo.get_routing_stats(category="core", agent="deepseek")
+    assert len(stats) == 1
+    assert stats[0]["samples_count"] == 1
+
+    # 2. Verifica que get_routing_stats respeita filtros e contagem
+    repo.record_subtask_outcome("deepseek", "core", first_pass=False, review_cycles=1, duration_seconds=25.0)
+    stats = repo.get_routing_stats(category="core", agent="deepseek")
+    assert stats[0]["samples_count"] == 2
+    assert stats[0]["first_pass_count"] == 1

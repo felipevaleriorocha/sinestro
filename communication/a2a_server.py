@@ -27,12 +27,13 @@ from agents.base import READ_ONLY_SKILLS, AgentBackend, AgentCancelledError, Age
 from communication.messaging import parse_request
 from core.domain import DomainProfile
 from core.logging_setup import redact
+from core.version import __version__
 from database.repository import Repository
 from orchestrator.agent_registry import AgentDefinition
 from orchestrator.schemas import AssignmentResponse, ImplementationReport, Plan, ReviewResult
 
 log = logging.getLogger("a2a.server")
-VERSION = "0.5.0"
+VERSION = __version__
 
 
 def agent_base_path(name: str) -> str:

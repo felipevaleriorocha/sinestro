@@ -44,6 +44,7 @@ def test_dashboard_shows_disabled_seal_and_unreviewed_warning():
     assert "revisão final desligada" in badge({"status": "completed", "final_review_state": "disabled"})
     assert "sem revisão final" in badge({"status": "completed_unreviewed", "final_review_state": "skipped"})
     assert "aceita por decisão humana" in badge({"status": "completed", "final_review_state": "accepted_by_human"})
+    assert "modo simples (revisão dispensada)" in badge({"status": "completed", "final_review_state": "skipped_by_policy"})
     assert badge({"status": "completed", "final_review_state": "passed"}) == ""
 
 

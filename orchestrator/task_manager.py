@@ -55,6 +55,7 @@ class FR:
     PASSED = "passed"
     DISABLED = "disabled"                    # FINAL_REVIEW=false (escolha do usuário; selo no painel)
     SKIPPED = "skipped"                      # revisor sem cota/indisponível
+    SKIPPED_BY_POLICY = "skipped_by_policy"  # modo simples com 1 subtarefa aprovada
     FAILED = "failed"                        # erro técnico na chamada/resposta
     CHANGES_REQUESTED = "changes_requested"
     REJECTED = "rejected"
@@ -63,7 +64,7 @@ class FR:
     NOT_REACHED = "not_reached"              # nem todas as subtarefas foram aprovadas; revisão final não se aplica
     ACCEPTED_BY_HUMAN = "accepted_by_human"  # usuário aceitou apesar do parecer
     REJECTED_BY_HUMAN = "rejected_by_human"  # usuário confirmou a rejeição
-    CLEAN = {PASSED, DISABLED, ACCEPTED_BY_HUMAN}
+    CLEAN = {PASSED, DISABLED, SKIPPED_BY_POLICY, ACCEPTED_BY_HUMAN}
     UNREVIEWED = {SKIPPED, FAILED}
     NEEDS_HUMAN = {CHANGES_REQUESTED, REJECTED, UNVERIFIED, INVALIDATED}
 

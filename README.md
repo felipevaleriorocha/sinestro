@@ -1,6 +1,6 @@
 # SINESTRO
 
-[![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.0-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-in%20development-orange)](#roadmap) [![Version](https://img.shields.io/badge/version-0.5.1-blue)](#) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **English** | [Português (Brasil)](README.pt-BR.md)
 
@@ -19,7 +19,7 @@ SINESTRO is a **local, autonomous multi-agent orchestrator** for coordinating so
 
 Models and providers are configured declaratively through environment variables (`.env`). The orchestration core is not intended to be permanently tied to a specific model.
 
-**Current version:** `0.5.0` · **SQLite schema:** `6`
+**Current version:** `0.5.1` · **SQLite schema:** `7`
 
 The current implementation includes static dependency analysis through the **Dependency Analyzer**, deterministic execution that is sequential by default (`PARALLEL_EXECUTION=false`), stage tracking through `stage_log`, and resource/tool isolation support through the **Model Context Protocol (MCP)**.
 

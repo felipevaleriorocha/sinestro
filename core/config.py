@@ -10,7 +10,7 @@ from typing import Mapping
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Chaves cujo valor nunca pode aparecer em logs, respostas da API ou erros.
-SECRET_KEYS = ("OPENCODE_SERVER_PASSWORD", "A2A_API_TOKEN")
+SECRET_KEYS = ("OPENCODE_SERVER_PASSWORD", "A2A_API_TOKEN", "GEMINI_API_KEY")
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -109,6 +109,7 @@ class Settings:
     agy_quota_cooldown_minutes: int = 60
     agy_auto_approve_permissions: bool = False
     gemini_channel: str = "agy"  # agy | api | off
+    gemini_channel_risk_ack: bool = False
     gemini_api_key: str = ""
     gemini_api_model: str = "gemini-2.5-pro"
     opencode_review_agent: str = "Plan"  # agente somente leitura do OpenCode para planejar/revisar
@@ -143,7 +144,7 @@ class Settings:
     vector_store_file: Path = BASE_DIR / "runtime" / "vector_store.db"
 
     def secrets(self) -> list[str]:
-        return [s for s in (self.opencode_password,) if s]
+        return [s for s in (self.opencode_password, self.gemini_api_key) if s]
 
     def public_summary(self) -> dict:
         """Resumo seguro (sem segredos) para /health e diagnósticos."""
@@ -226,6 +227,7 @@ def load_settings(env_file: Path | None = None, overrides: Mapping[str, str] | N
         agy_quota_cooldown_minutes=_int(g("AGY_QUOTA_COOLDOWN_MINUTES"), 60, 0),
         agy_auto_approve_permissions=_bool(g("AGY_AUTO_APPROVE_PERMISSIONS") or g("AGY_AUTO_APPROVE"), False),
         gemini_channel=(_clean(g("GEMINI_CHANNEL")) or "agy").lower(),
+        gemini_channel_risk_ack=_bool(g("GEMINI_CHANNEL_ACK_RISK") or g("GEMINI_RISK_ACCEPTED"), False),
         gemini_api_key=_clean(g("GEMINI_API_KEY")),
         gemini_api_model=_clean(g("GEMINI_API_MODEL")) or "gemini-2.5-pro",
         opencode_review_agent=_clean(g("OPENCODE_REVIEW_AGENT")) if g("OPENCODE_REVIEW_AGENT") is not None else "Plan",

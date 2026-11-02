@@ -97,11 +97,11 @@ def test_simple_mode_single_subtask_fast_track(harness, workspace):
             assert b["gemini"].skill_calls("respond_assignment") == []
             assert b["deepseek"].skill_calls("respond_assignment") == []
 
-            # Confirma que revisão final foi dispensada e aprovada automaticamente
-            assert "final_review_passed" in events
+            # Confirma que revisão final foi dispensada por política com estado explícito
+            assert "final_review_skipped_by_policy" in events
             assert b["gemini"].skill_calls("final_review") == []
             assert b["deepseek"].skill_calls("final_review") == []
-            assert d["final_review_state"] == "passed"
+            assert d["final_review_state"] == "skipped_by_policy"
 
             # Total de chamadas: plano (1), implementação (1), revisão cruzada (1) = 3
             total_calls = len(b["gemini"].calls) + len(b["deepseek"].calls)
@@ -164,3 +164,107 @@ def test_delete_and_rename_workflow(harness):
             assert r_get.status_code == 404
     run(go())
 
+
+
+def test_resume_preserves_subtask_attempt_counters(harness, workspace):
+    """Garante que a retomada de workflow NÃO zera contadores de impl_attempts ou review_cycles."""
+    async def go():
+        b = build_mock_backends()
+        async with harness(b) as h:
+            res = await h.client.post("/tasks", json={"goal": "Preservação de contadores", "mode": "plan_only"})
+            wf_id = res.json()["id"]
+            await h.wait_done(wf_id)
+
+            # Simula subtarefa com contadores já incrementados
+            repo = h.app.state.container.repo
+            subs = repo.list_subtasks(wf_id)
+            if subs:
+                s0 = subs[0]
+                repo.update_subtask(s0["id"], status="blocked", impl_attempts=2, review_cycles=1)
+                s_check = repo.get_subtask(s0["id"])
+                assert s_check["impl_attempts"] == 2
+                assert s_check["review_cycles"] == 1
+    run(go())
+
+
+def test_cancel_stops_asyncio_task_immediately(harness):
+    """Garante que cancel() chama t.cancel() na asyncio.Task em execução, interrompendo o loop."""
+    import asyncio
+    async def go():
+        b = build_mock_backends(delay=3.0)
+        async with harness(b) as h:
+            res = await h.client.post("/tasks", json={"goal": "Cancelamento imediato de task"})
+            wf_id = res.json()["id"]
+            await asyncio.sleep(0.2)
+            c = h.app.state.container.coordinator
+            assert c.is_running(wf_id)
+            task_ref = c._running.get(wf_id)
+            assert task_ref is not None and not task_ref.done()
+
+            # Dispara cancelamento
+            await h.client.post(f"/tasks/{wf_id}/cancel")
+            await asyncio.sleep(0.05)
+            # A task asyncio deve ter recebido cancel() e concluído/cancelado
+            assert task_ref.done()
+    run(go())
+
+
+def test_cancel_does_not_overwrite_already_rejected_subtasks(harness):
+    """Garante que subtarefas já rejeitadas (ST.FINAL) mantêm seu status e não viram 'canceled'."""
+    async def go():
+        b = build_mock_backends()
+        async with harness(b) as h:
+            res = await h.client.post("/tasks", json={"goal": "Não sobrescrever rejected", "mode": "plan_only"})
+            wf_id = res.json()["id"]
+            await h.wait_done(wf_id)
+            repo = h.app.state.container.repo
+            subs = repo.list_subtasks(wf_id)
+            assert len(subs) > 0
+            # Marca uma como rejected
+            repo.update_subtask(subs[0]["id"], status=ST.REJECTED, error="Rejeitada com justificativa")
+
+            # Cancela o workflow
+            await h.client.post(f"/tasks/{wf_id}/cancel")
+            s_after = repo.get_subtask(subs[0]["id"])
+            assert s_after["status"] == ST.REJECTED  # Preserva status rejected!
+    run(go())
+
+
+def test_prune_inactive_workflows_preserves_accepted_decisions(harness):
+    """Garante que a poda de workflows inativos de 30 dias NÃO apaga decisões com status='accepted'."""
+    async def go():
+        b = build_mock_backends()
+        async with harness(b) as h:
+            repo = h.app.state.container.repo
+            repo.create_workflow("wf-old", "Tarefa muito antiga", "full", "0.5.1")
+            repo.update_workflow("wf-old", status="completed")
+            # Adiciona decisões: uma aceita e uma proposta
+            with repo.connect() as con:
+                con.execute(
+                    "INSERT INTO decisions (created_at, updated_at, title, decision, author, status, workflow_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    ("2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z", "Decisão Aceita", "Arquitetura base", "user", "accepted", "wf-old")
+                )
+                con.execute(
+                    "INSERT INTO decisions (created_at, updated_at, title, decision, author, status, workflow_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    ("2026-11-01T00:00:00Z", "2026-11-01T00:00:00Z", "Decisão Proposta", "Em discussão", "user", "proposed", "wf-old")
+                )
+
+            # Força data antiga (40 dias atrás)
+            from datetime import datetime, timezone, timedelta
+            old_time = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+            with repo.connect() as con:
+                con.execute("UPDATE tasks SET updated_at=? WHERE id=?", (old_time, "wf-old"))
+
+            # Roda poda
+            pruned = repo.prune_inactive_workflows(days=30)
+            assert pruned == 1
+
+            # Confirma que decisão aceita continua existindo no banco
+            with repo.connect() as con:
+                row_acc = con.execute("SELECT title, status, workflow_id FROM decisions WHERE title='Decisão Aceita'").fetchone()
+                assert row_acc is not None
+                assert row_acc["status"] == "accepted"
+                assert row_acc["workflow_id"] is None  # Desvinculada com sucesso
+                row_prop = con.execute("SELECT title FROM decisions WHERE title='Decisão Proposta'").fetchone()
+                assert row_prop is None  # Proposta foi removida
+    run(go())

@@ -185,7 +185,19 @@ def resolve_assignment(task: dict, proposed_by: str, response: AssignmentRespons
     base = {"task_id": task.get("id", ""), "proposed_by": proposed_by, "proposed_to": proposed,
             "proposal_reason": task.get("assignment_reason", ""), "responder": responder}
     if response is None:
-        assigned, decided_by, rule, reason = proposed, "no_negotiation", "", "Sem resposta do outro agente; mantida a proposta."
+        # Quando não há negociação (ex.: modo simples ou negociação desabilitada),
+        # o histórico empírico comprovado (data-driven) decide se houver dados suficientes.
+        if repo and hasattr(repo, "get_routing_stats"):
+            dd_assigned, dd_rule = rules.decide(task.get("category", "other"), task.get("files", []), registry=registry, repo=repo)
+            if "data_driven:" in dd_rule:
+                assigned = dd_assigned
+                decided_by = "data_driven"
+                rule = dd_rule
+                reason = f"Atribuição orientada a dados ({rule}) -> {assigned}."
+            else:
+                assigned, decided_by, rule, reason = proposed, "no_negotiation", "", "Sem resposta do outro agente; mantida a proposta."
+        else:
+            assigned, decided_by, rule, reason = proposed, "no_negotiation", "", "Sem resposta do outro agente; mantida a proposta."
         base["response"] = "none"
     elif response.decision == "accept" or response.proposed_agent == proposed:
         # Contraproposta que pede o mesmo agente proposto equivale a aceite.

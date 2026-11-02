@@ -241,7 +241,7 @@ class AssignmentResponse(_Lenient):
     structured: bool = True
 
 
-DecidedBy = Literal["consensus", "rules", "quota_fallback", "no_negotiation", "human", "intelligent_routing"]
+DecidedBy = Literal["consensus", "rules", "quota_fallback", "no_negotiation", "human", "intelligent_routing", "data_driven"]
 
 
 class AssignmentDecision(BaseModel):

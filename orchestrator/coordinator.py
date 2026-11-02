@@ -126,8 +126,9 @@ class Coordinator:
         if t and not t.done():
             t.cancel()
         else:
+            settled = {ST.APPROVED, ST.COMPLETED, ST.REJECTED, ST.FAILED}
             for sub in self.tasks.subtasks(wf_id):
-                if sub["status"] not in ST.DONE:
+                if sub["status"] not in settled:
                     self.repo.update_subtask(sub["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
             self.locks.release_workflow(wf_id)
             self.tasks.set_status(wf_id, WF.CANCELED, error="Cancelado pelo usuário.")
@@ -148,8 +149,9 @@ class Coordinator:
                 status = WF.CANCELED if self.tasks.cancel_requested(wf_id) else WF.INTERRUPTED
                 err_msg = "Cancelado pelo usuário." if status == WF.CANCELED else "Execução interrompida (serviço encerrando)."
                 self.tasks.set_status(wf_id, status, error=err_msg)
+                settled = {ST.APPROVED, ST.COMPLETED, ST.REJECTED, ST.FAILED}
                 for sub in self.tasks.subtasks(wf_id):
-                    if sub["status"] not in ST.DONE:
+                    if sub["status"] not in settled:
                         self.repo.update_subtask(sub["id"], status=ST.CANCELED, error="Workflow cancelado pelo usuário.")
                 self.locks.release_workflow(wf_id)
                 raise
@@ -634,14 +636,24 @@ class Coordinator:
 
             # Fase 4: registra métricas de desfecho para roteamento e renova retenção do workflow
             try:
-                if final_sub and st_status in ST.FINAL:
+                # Apenas desfechos conclusivos de implementação (exclui BLOCKED, CANCELED, NEEDS_HUMAN)
+                if final_sub and st_status in (ST.APPROVED, ST.COMPLETED, ST.REJECTED, ST.FAILED):
                     spec = dict(final_sub.get("spec") or {})
                     category = spec.get("category") or "other"
-                    cycles = int(final_sub.get("review_cycles") or 0)
-                    fixes = int(final_sub.get("check_fix_attempts") or 0)
-                    first_pass = (st_status in (ST.APPROVED, ST.COMPLETED) and cycles == 0 and fixes == 0)
-                    duration = max(0.0, time.time() - t0)
-                    self.repo.record_subtask_outcome(implementer, category, first_pass, cycles, duration)
+                    is_review_skipped = bool(spec.get("skip_review") or spec.get("no_review") or category in ("docs", "assets"))
+                    # Tarefas sem revisão técnica não devem inflar/distorcer taxa de first-pass em código
+                    if not is_review_skipped:
+                        events = self.repo.list_events(wf_id)
+                        already_recorded = any(e.get("type") == "subtask_outcome_recorded" and e.get("subtask_id") == sid for e in events)
+                        if not already_recorded:
+                            cycles = int(final_sub.get("review_cycles") or 0)
+                            fixes = int(final_sub.get("check_fix_attempts") or 0)
+                            first_pass = (st_status in (ST.APPROVED, ST.COMPLETED) and cycles == 0 and fixes == 0)
+                            duration = max(0.0, time.time() - t0)
+                            self.repo.record_subtask_outcome(implementer, category, first_pass, cycles, duration)
+                            self.tasks.event(wf_id, "orchestrator", "subtask_outcome_recorded",
+                                             {"subtask_id": sid, "category": category, "first_pass": first_pass, "cycles": cycles},
+                                             "info", sid)
                 self.repo.touch_workflow(wf_id)
             except Exception as exc:  # noqa: BLE001
                 log.warning("Falha ao registrar métricas de roteamento da subtarefa %s: %s", sid, exc)
@@ -1026,10 +1038,10 @@ class Coordinator:
         mode = wf.get("mode") or "full"
         if mode == "simple" and len(subs) == 1 and all(s["status"] == ST.APPROVED for s in subs):
             reviewer, self_authored = self._final_reviewer(subs)
-            outcome = {"state": FR.PASSED, "detail": "Dispensada em modo simples (subtarefa única já aprovada na revisão cruzada)",
-                       "coverage": self._coverage(subs, [], FR.PASSED)}
-            self.repo.update_workflow(wf_id, final_review_state=FR.PASSED, final_review_json=outcome)
-            self.tasks.event(wf_id, "orchestrator", "final_review_passed", "Revisão final dispensada automaticamente no modo simples (1 subtarefa aprovada).", "info")
+            outcome = {"state": FR.SKIPPED_BY_POLICY, "detail": "Dispensada por política em modo simples (subtarefa única já aprovada na revisão cruzada)",
+                       "coverage": self._coverage(subs, [], FR.SKIPPED_BY_POLICY)}
+            self.repo.update_workflow(wf_id, final_review_state=FR.SKIPPED_BY_POLICY, final_review_json=outcome)
+            self.tasks.event(wf_id, "orchestrator", "final_review_skipped_by_policy", "Revisão final dispensada por política no modo simples (1 subtarefa aprovada).", "info")
             return outcome
         if not self.s.final_review:
             reviewer, self_authored = self._final_reviewer(subs)

@@ -332,6 +332,7 @@ const pill = s => `<span class="pill s-${esc(s)}">${esc(s)}</span>`;
 function finalReviewBadge(w){
   const st = w.final_review_state;
   if (st === 'disabled') return '<span class="pill s-warn" title="FINAL_REVIEW=false">revisão final desligada</span>';
+  if (st === 'skipped_by_policy') return '<span class="pill s-ok" title="Modo simples: tarefa única aprovada na revisão cruzada">modo simples (revisão dispensada)</span>';
   if (w.status === 'completed_unreviewed') return `<span class="pill s-warn" title="${esc(st)}">sem revisão final</span>`;
   if (st === 'accepted_by_human') return '<span class="pill s-warn">revisão final: aceita por decisão humana</span>';
   if (st === 'rejected_by_human') return '<span class="pill s-err">revisão final: rejeitada por decisão humana</span>';
@@ -413,9 +414,10 @@ function quotaBadge(a){
   const pct = Math.max(0, Math.min(100, Math.round(q.percent_remaining)));
   const color = pct <= 15 ? 'var(--err, #ef4444)' : pct <= 45 ? '#f59e0b' : 'var(--ok, #10b981)';
   const offset = (34.55 * (1 - pct / 100)).toFixed(1);
-  const title = q.cooldown_reason ? `Cota excedida: ${q.cooldown_reason}` : `Cota restante estimada: ${pct}%`;
+  const title = q.cooldown_reason ? `Cota excedida: ${q.cooldown_reason}` : `Cota restante estimada (janela 24h): ${pct}%`;
+  const label = q.cooldown_reason ? '0% (cooldown)' : `~${pct}% rest.`;
   return `<span class="quota-badge" title="${esc(title)}">
-    <span>${pct}% left</span>
+    <span>${esc(label)}</span>
     <svg viewBox="0 0 16 16" width="13" height="13" style="transform:rotate(-90deg);display:inline-block;vertical-align:middle;flex-shrink:0">
       <circle cx="8" cy="8" r="5.5" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
       <circle cx="8" cy="8" r="5.5" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="34.55" stroke-dashoffset="${offset}" stroke-linecap="round"/>

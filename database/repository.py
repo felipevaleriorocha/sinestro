@@ -529,6 +529,8 @@ class Repository:
             con.execute(f"DELETE FROM stage_log WHERE workflow_id IN ({id_placeholders})", wf_ids)
             con.execute(f"DELETE FROM file_changes WHERE workflow_id IN ({id_placeholders})", wf_ids)
             con.execute(f"DELETE FROM subtasks WHERE workflow_id IN ({id_placeholders})", wf_ids)
+            # Preserva decisões técnicas aceitas (memória arquitetural do projeto) desvinculando o workflow_id
+            con.execute(f"UPDATE decisions SET workflow_id = NULL WHERE workflow_id IN ({id_placeholders}) AND status = 'accepted'", wf_ids)
             con.execute(f"DELETE FROM decisions WHERE workflow_id IN ({id_placeholders})", wf_ids)
             con.execute(f"DELETE FROM tasks WHERE id IN ({id_placeholders})", wf_ids)
             return len(wf_ids)

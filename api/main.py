@@ -48,17 +48,49 @@ def create_app(settings: Settings | None = None, backends: dict[str, AgentBacken
         await shutdown(app)
 
     app = FastAPI(title="Roblox Multi-Agent Orchestrator", version=__version__, lifespan=lifespan)
+
+    # Origens estritas permitidas (apenas locais / loopback e a porta do próprio servidor/painel)
+    local_origins = [
+        "http://localhost:8787",
+        "http://127.0.0.1:8787",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        f"http://localhost:{settings.port}",
+        f"http://127.0.0.1:{settings.port}",
+        settings.public_url.rstrip("/"),
+    ]
+    allowed_origins = list(dict.fromkeys(local_origins))
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    # Hosts restritos (sem '*', eliminando vulnerabilidade de DNS rebinding)
+    allowed_hosts = list(dict.fromkeys(["localhost", "127.0.0.1", "::1", "testserver", settings.host]))
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "::1", "testserver", "*"],
+        allowed_hosts=allowed_hosts,
     )
+
+    @app.middleware("http")
+    async def origin_csrf_protection(request, call_next):
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            origin = request.headers.get("origin")
+            if origin:
+                clean_origin = origin.rstrip("/")
+                if clean_origin not in allowed_origins:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(status_code=403, content={"detail": f"Origem não autorizada: {clean_origin}"})
+        return await call_next(request)
+
     holder["app"] = app
     app.state.container = container
     app.state.started = False

@@ -297,6 +297,12 @@ class GeminiProvider(Provider):
         if channel == "off":
             raise AgentUnavailableError("Canal do Gemini configurado como 'off' no .env.")
         if channel == "api":
+            skill = options.get("skill") or ""
+            if skill == "implement_task":
+                raise AgentResponseError(
+                    "O canal GEMINI_CHANNEL=api opera somente em modo texto e não possui suporte a edição de arquivos no workspace. "
+                    "Configure GEMINI_CHANNEL=agy ou utilize o OpenCode para implementação."
+                )
             return self._run_api(prompt, context_key=context_key, run_id=run_id, options=options)
 
         resume = self.resume_flag() is not None
@@ -346,7 +352,9 @@ class GeminiProvider(Provider):
                 payload = parse_agy_output(res.stdout)
                 result = result_from_payload(payload, options.get("model") or self.model)
             except AgentResponseError as err:
-                if attempt < max_empty_retries and ("resposta vazia" in str(err).lower() or "não retornou json" in str(err).lower()):
+                err_str = str(err).lower()
+                is_empty_or_malformed = any(m in err_str for m in ("resposta vazia", "não retornou json", "não retornou saída", "sem resposta"))
+                if attempt < max_empty_retries and is_empty_or_malformed:
                     log.warning("Antigravity retornou saída vazia/malformada (tentativa %d/%d). Tentando novamente...", attempt + 1, max_empty_retries)
                     time.sleep(1)
                     continue
@@ -354,6 +362,14 @@ class GeminiProvider(Provider):
 
             if result.duration_seconds is None:
                 result.duration_seconds = round(elapsed, 3)
+            if result.usage is None and result.text:
+                est_in = max(1, len(prompt) // 4)
+                est_out = max(1, len(result.text) // 4)
+                result.usage = {
+                    "input_tokens": est_in,
+                    "output_tokens": est_out,
+                    "estimated": True,
+                }
             if result.session_id and resume and self._sessions:
                 self._sessions.save_session(self.name, context_key, result.session_id, result.model)
             result.extra["resume_supported"] = resume
@@ -367,7 +383,8 @@ class GeminiProvider(Provider):
         if not api_key:
             raise AgentAuthError("GEMINI_API_KEY não configurada no .env para GEMINI_CHANNEL=api.")
         model = options.get("model") or self.settings.gemini_api_model or "gemini-2.5-pro"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
         started = time.monotonic()
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -375,7 +392,7 @@ class GeminiProvider(Provider):
         }
         try:
             with httpx.Client(timeout=self.settings.agy_timeout) as client:
-                resp = client.post(url, json=payload)
+                resp = client.post(url, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
             raise AgentTimeoutError(f"Gemini API timeout excedido: {exc}") from exc
         except Exception as exc:

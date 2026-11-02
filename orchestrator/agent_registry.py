@@ -193,6 +193,8 @@ class AgentRegistry:
                 "percent_remaining": quota_pct,
                 "status": quota_status,
                 "cooldown_reason": cooldown_msg,
+                "is_estimated": cooldown_msg is None and env_override is None,
+                "window": "24h",
             }
             out.append(entry)
         return out
