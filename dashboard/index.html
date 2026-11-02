@@ -131,6 +131,8 @@ button.sec{background:#243049} button.danger{background:#b62324}
 .nm{font-size:20px;font-weight:700}
 .sp{display:inline-flex;align-items:center;gap:6px;padding:3px 12px;border-radius:14px;border:1.5px solid var(--c);color:var(--c);font-weight:600;font-size:12px;white-space:nowrap;background:color-mix(in srgb,var(--c) 10%,transparent)}
 .sp i{width:8px;height:8px;border-radius:50%;background:var(--c)} .work .sp i{animation:beat 1.6s infinite}
+.quota-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:#94a3b8;padding:2px 7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;line-height:1;user-select:none;vertical-align:middle}
+.quota-badge:hover{background:rgba(255,255,255,.08);color:var(--text)}
 .hr{height:1px;background:var(--line);opacity:.7}
 .al{font-size:11px;letter-spacing:.08em;font-weight:700;color:var(--muted);text-transform:uppercase}
 .act{display:flex;gap:12px;align-items:center;min-height:44px} .act>div{min-width:0}
@@ -379,6 +381,21 @@ function cleanModelName(model){
   if(!model) return '—';
   return String(model).replace(/^opencode\//, '').replace(/^google\//, '');
 }
+function quotaBadge(a){
+  const q = a.quota;
+  if(!q || typeof q.percent_remaining !== 'number') return '';
+  const pct = Math.max(0, Math.min(100, Math.round(q.percent_remaining)));
+  const color = pct <= 15 ? 'var(--err, #ef4444)' : pct <= 45 ? '#f59e0b' : 'var(--ok, #10b981)';
+  const offset = (34.55 * (1 - pct / 100)).toFixed(1);
+  const title = q.cooldown_reason ? `Cota excedida: ${q.cooldown_reason}` : `Cota restante estimada: ${pct}%`;
+  return `<span class="quota-badge" title="${esc(title)}">
+    <span>${pct}% left</span>
+    <svg viewBox="0 0 16 16" width="13" height="13" style="transform:rotate(-90deg);display:inline-block;vertical-align:middle;flex-shrink:0">
+      <circle cx="8" cy="8" r="5.5" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+      <circle cx="8" cy="8" r="5.5" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="34.55" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+    </svg>
+  </span>`;
+}
 function agCard(a,i){
   const cur=ACT.find(x=>String(x.agent).toLowerCase()===a.name.toLowerCase()), blk=!a.accepting_work&&!cur;
   const [ti,de,ic]=cur?(ACTION[cur.skill]||[cur.skill||'Trabalhando','','code']):['Sem ação no momento','Aguardando a próxima etapa.','idle'];
@@ -390,7 +407,10 @@ function agCard(a,i){
       <div class="logo">${logo(a)}</div>
       <div style="flex:1;min-width:0">
         <div class="nm">${esc(short(a.display_name))}</div>
-        <div class="muted mono clip1" style="font-size:12px;margin-top:2px" title="${esc(a.model||'')}">${esc(modelName)}</div>
+        <div class="model-row" style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+          <span class="muted mono clip1" style="font-size:12px" title="${esc(a.model||'')}">${esc(modelName)}</span>
+          ${quotaBadge(a)}
+        </div>
       </div>
       <span class="sp" title="${esc(a.blocked_reason||'')}"><i></i>${cur?'Trabalhando…':blk?'Indisponível':'Online'}</span>
     </div>

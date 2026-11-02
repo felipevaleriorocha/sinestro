@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -133,7 +134,7 @@ class AgentRegistry:
             reasons.append(f"{name}: {reason}")
         return None, "; ".join(reasons) or f"Nenhum agente com a skill {skill}."
 
-    def describe(self) -> list[dict[str, Any]]:
+    def describe(self, repo: Any | None = None) -> list[dict[str, Any]]:
         out = []
         for name, st in self.agents.items():
             ok, reason = self.can_accept(name)
@@ -157,5 +158,41 @@ class AgentRegistry:
                 spec = self.capability_registry.get_model(st.backend.model)
                 if spec:
                     entry["model_spec"] = spec.to_dict()
+
+            # Quota e percentual restante
+            quota_pct: int | None = None
+            quota_status = "ok"
+            cooldown_msg: str | None = None
+            cooldown_reason = reason if not ok else None
+
+            if cooldown_reason:
+                quota_pct = 0
+                quota_status = "exhausted"
+                cooldown_msg = cooldown_reason
+            else:
+                env_override = os.getenv(f"{name.upper()}_QUOTA_PERCENT")
+                if env_override and env_override.strip().isdigit():
+                    quota_pct = max(0, min(100, int(env_override.strip())))
+                elif repo and hasattr(repo, "get_agent_usage_last_24h"):
+                    usage_24h = repo.get_agent_usage_last_24h(name).get(name, 0)
+                    default_budget = 1_200_000 if "gemini" in name.lower() else 500_000
+                    budget_str = os.getenv(f"{name.upper()}_DAILY_TOKEN_QUOTA")
+                    budget = int(budget_str) if (budget_str and budget_str.strip().isdigit()) else default_budget
+                    used_ratio = min(1.0, max(0.0, usage_24h / float(budget)))
+                    quota_pct = max(5, int(round((1.0 - used_ratio) * 100)))
+
+            if quota_pct is not None:
+                if quota_pct > 40:
+                    quota_status = "ok"
+                elif quota_pct > 15:
+                    quota_status = "warning"
+                else:
+                    quota_status = "low" if quota_pct > 0 else "exhausted"
+
+            entry["quota"] = {
+                "percent_remaining": quota_pct,
+                "status": quota_status,
+                "cooldown_reason": cooldown_msg,
+            }
             out.append(entry)
         return out

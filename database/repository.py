@@ -301,9 +301,9 @@ class Repository:
             agent = r["agent"]
             model = r.get("model") or "unknown"
             usage = _loads(r.get("usage_json")) or {}
-            tok = usage.get("tokens") or {}
-            t_in = tok.get("prompt") or tok.get("input") or 0
-            t_out = tok.get("completion") or tok.get("output") or 0
+            tok = usage.get("tokens") if isinstance(usage.get("tokens"), dict) else {}
+            t_in = int(usage.get("input_tokens") or usage.get("prompt_tokens") or tok.get("prompt") or tok.get("input") or tok.get("input_tokens") or 0)
+            t_out = int(usage.get("output_tokens") or usage.get("completion_tokens") or tok.get("completion") or tok.get("output") or tok.get("output_tokens") or 0)
 
             rate_in = 1.25 if ("gemini" in agent.lower() or "gemini" in model.lower()) else 0.27
             rate_out = 5.00 if ("gemini" in agent.lower() or "gemini" in model.lower()) else 1.10
@@ -339,6 +339,26 @@ class Repository:
             "total_estimated_usd": round(total_estimated_usd, 6),
             "by_agent": by_agent,
         }
+
+    def get_agent_usage_last_24h(self, agent: str | None = None) -> dict[str, int]:
+        """Calcula o total de tokens (input + output) consumidos nas últimas 24 horas por agente."""
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        sql = "SELECT agent, usage_json FROM agent_runs WHERE created_at >= ?"
+        params: list[Any] = [since]
+        if agent:
+            sql += " AND agent = ?"
+            params.append(agent)
+        with self.connect() as con:
+            rows = con.execute(sql, params).fetchall()
+        totals: dict[str, int] = {}
+        for r in rows:
+            ag = r["agent"]
+            usage = _loads(r["usage_json"]) or {}
+            tok = usage.get("tokens") if isinstance(usage.get("tokens"), dict) else {}
+            t_in = int(usage.get("input_tokens") or usage.get("prompt_tokens") or tok.get("prompt") or tok.get("input") or tok.get("input_tokens") or 0)
+            t_out = int(usage.get("output_tokens") or usage.get("completion_tokens") or tok.get("completion") or tok.get("output") or tok.get("output_tokens") or 0)
+            totals[ag] = totals.get(ag, 0) + t_in + t_out
+        return totals
 
     def get_session(self, agent: str, context_key: str) -> str | None:
         with self.connect() as con:

@@ -40,3 +40,23 @@ def test_cors_middleware_headers(harness):
             assert res.headers["access-control-allow-origin"] in ("*", "http://localhost:5173")
 
     run(go())
+
+
+def test_agent_quota_info_and_token_accounting(harness):
+    """Verifica que /agents retorna percentual de cota e métricas de tokens funcionam."""
+    async def go():
+        b = build_mock_backends()
+        async with harness(b) as h:
+            res = await h.client.get("/agents")
+            assert res.status_code == 200
+            agents = res.json()
+            assert len(agents) >= 2
+            for a in agents:
+                assert "quota" in a
+                q = a["quota"]
+                assert "percent_remaining" in q
+                assert isinstance(q["percent_remaining"], int)
+                assert 0 <= q["percent_remaining"] <= 100
+                assert q["status"] in ("ok", "warning", "low", "exhausted")
+
+    run(go())

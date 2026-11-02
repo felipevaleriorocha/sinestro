@@ -234,7 +234,7 @@ def task_events(task_id: str, request: Request) -> list[dict]:
 @router.get("/agents", tags=["Agentes"])
 def list_agents(request: Request) -> list[dict]:
     c = C(request)
-    out = c.registry.describe()
+    out = c.registry.describe(c.repo)
     for a in out:
         base = f"{c.settings.public_url}{agent_base_path(a['name'])}"
         a["agent_card_url"] = f"{base}/.well-known/agent-card.json"
